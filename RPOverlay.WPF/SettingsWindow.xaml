@@ -1,0 +1,188 @@
+<Window x:Class="RPOverlay.WPF.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Inställningar - The Path RP Overlay"
+        Height="600"
+        Width="700"
+        WindowStartupLocation="CenterScreen"
+        Background="#FF1E1E1E"
+        ResizeMode="CanResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0"
+                   Text="Kommando Inställningar"
+                   FontSize="24"
+                   FontWeight="SemiBold"
+                   Foreground="White"
+                   Margin="0,0,0,20"/>
+
+        <!-- Commands List -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="Dina Kommandon"
+                           FontSize="16"
+                           Foreground="#FFB0B0B0"
+                           VerticalAlignment="Center"/>
+
+                <Button Grid.Column="1"
+                        Content="+ Lägg till nytt"
+                        Click="AddButton_Click"
+                        Background="#FF2F9DFF"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Padding="15,8"
+                        FontSize="14"
+                        Cursor="Hand"/>
+            </Grid>
+
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Hidden">
+                <ItemsControl x:Name="CommandsItemsControl"
+                              ItemsSource="{Binding Commands}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="#FF2A2A2A"
+                                    BorderBrush="#FF3A3A3A"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Margin="0,0,0,10"
+                                    Padding="15">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Knapp-etikett:"
+                                               Foreground="#FFB0B0B0"
+                                               FontSize="12"
+                                               Margin="0,0,0,5"/>
+
+                                    <TextBox Grid.Row="1" Grid.Column="0"
+                                             Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="#FF1C1C1C"
+                                             Foreground="White"
+                                             BorderBrush="#FF2F9DFF"
+                                             BorderThickness="1"
+                                             Padding="8"
+                                             Margin="0,0,10,10"/>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Grid.RowSpan="3"
+                                                Orientation="Vertical"
+                                                VerticalAlignment="Center">
+                                        <Button Content="↑"
+                                                Click="MoveUpButton_Click"
+                                                Tag="{Binding}"
+                                                Width="40"
+                                                Height="35"
+                                                Margin="0,0,0,5"
+                                                Background="#FF3A3A3A"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                Cursor="Hand"/>
+                                        <Button Content="↓"
+                                                Click="MoveDownButton_Click"
+                                                Tag="{Binding}"
+                                                Width="40"
+                                                Height="35"
+                                                Margin="0,0,0,5"
+                                                Background="#FF3A3A3A"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                Cursor="Hand"/>
+                                        <Button Content="✕"
+                                                Click="DeleteButton_Click"
+                                                Tag="{Binding}"
+                                                Width="40"
+                                                Height="35"
+                                                Background="#FFD32F2F"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                Cursor="Hand"/>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                               Text="Kommando-text:"
+                                               Foreground="#FFB0B0B0"
+                                               FontSize="12"
+                                               Margin="0,0,0,5"/>
+
+                                    <TextBox Grid.Row="3" Grid.Column="0"
+                                             Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="#FF1C1C1C"
+                                             Foreground="White"
+                                             BorderBrush="#FF2F9DFF"
+                                             BorderThickness="1"
+                                             Padding="8"
+                                             Margin="0,0,10,0"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             MinHeight="60"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Footer Buttons -->
+        <Grid Grid.Row="2" Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="1"
+                    Content="Spara"
+                    Click="SaveButton_Click"
+                    Background="#FF4CAF50"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Padding="30,10"
+                    FontSize="14"
+                    Margin="0,0,10,0"
+                    Cursor="Hand"/>
+
+            <Button Grid.Column="2"
+                    Content="Avbryt"
+                    Click="CancelButton_Click"
+                    Background="#FF757575"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Padding="30,10"
+                    FontSize="14"
+                    Cursor="Hand"/>
+        </Grid>
+    </Grid>
+</Window>

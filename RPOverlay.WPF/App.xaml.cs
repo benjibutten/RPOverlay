@@ -12,10 +12,10 @@ namespace RPOverlay.WPF
         {
             base.OnStartup(e);
             
-            // Create system tray icon
+            // Create system tray icon with custom medical cross icon
             _notifyIcon = new System.Windows.Forms.NotifyIcon
             {
-                Icon = System.Drawing.SystemIcons.Application,
+                Icon = IconHelper.CreateMedicalCrossIcon(),
                 Visible = true,
                 Text = "The Path RP Overlay"
             };
@@ -28,6 +28,17 @@ namespace RPOverlay.WPF
                 {
                     mw.ToggleOverlayFromTray();
                 }
+            });
+            contextMenu.Items.Add("Inställningar", null, (s, args) => 
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    var settingsWindow = new SettingsWindow
+                    {
+                        Owner = MainWindow
+                    };
+                    settingsWindow.ShowDialog();
+                });
             });
             contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             contextMenu.Items.Add("Avsluta", null, (s, args) => 

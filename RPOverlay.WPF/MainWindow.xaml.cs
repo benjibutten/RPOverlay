@@ -5,9 +5,12 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.IO;
+using System.Text.Json;
 using RPOverlay.Core.Models;
 using RPOverlay.Core.Services;
 using RPOverlay.Core.Utilities;
@@ -17,6 +20,31 @@ using RPOverlay.WPF.Logging;
 
 namespace RPOverlay.WPF
 {
+    public class NoteTab : INotifyPropertyChanged
+    {
+        private string _content = string.Empty;
+        
+        public string Name { get; set; } = string.Empty;
+        
+        public string Content
+        {
+            get => _content;
+            set
+            {
+                if (_content == value) return;
+                _content = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private readonly OverlayConfigService _configService;
@@ -28,8 +56,11 @@ namespace RPOverlay.WPF
         private Key _currentKey = Key.F9;
         private readonly int _hotkeyId = 0x1001;
         private IntPtr _lastForegroundWindow = IntPtr.Zero;
-    private string _hotkeyHint = "F9";
-    private bool _isDisposed;
+        private string _hotkeyHint = "F9";
+        private bool _isDisposed;
+        private readonly DispatcherTimer _autoSaveTimer;
+        private readonly string _notesDirectory;
+        private readonly Dictionary<string, NoteTab> _noteTabs = new();
 
         public MainWindow()
         {
@@ -42,10 +73,26 @@ namespace RPOverlay.WPF
                 _configService = new OverlayConfigService(new AppDataOverlayConfigPathProvider());
                 _configService.ConfigReloaded += OnConfigReloaded;
 
+                // Initialize notes directory
+                _notesDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "RPOverlay",
+                    "Notes");
+                Directory.CreateDirectory(_notesDirectory);
+
+                // Initialize auto-save timer (every 30 seconds)
+                _autoSaveTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(30)
+                };
+                _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+
                 Loaded += OnLoaded;
                 Unloaded += OnUnloaded;
 
                 ApplyConfig(_configService.Current);
+                InitializeNoteTabs();
+                
                 DebugLogger.Log("MainWindow constructor: Complete");
             }
             catch (Exception ex)
@@ -84,9 +131,10 @@ namespace RPOverlay.WPF
             DebugLogger.Log($"Window handle: {_windowHandle}");
 
             ApplyWindowStyles();
-            PositionWindow();
+            LoadWindowSettings(); // Load saved position and size
             RegisterHotkey();
             HideOverlay();
+            _autoSaveTimer.Start(); // Start auto-save timer
             Dispatcher.BeginInvoke(new Action(PositionWindow), DispatcherPriority.Background);
             DebugLogger.Log("OnLoaded: Complete");
         }
@@ -286,6 +334,74 @@ namespace RPOverlay.WPF
             Top = workArea.Top + margin;
         }
 
+        private void LoadWindowSettings()
+        {
+            try
+            {
+                var config = _configService.Current;
+                if (config.Window != null)
+                {
+                    // Restore position and size
+                    Left = config.Window.Left;
+                    Top = config.Window.Top;
+                    Width = config.Window.Width;
+                    Height = config.Window.Height;
+
+                    // Validate that window is within screen bounds
+                    var workArea = SystemParameters.WorkArea;
+                    if (Left < workArea.Left || Left > workArea.Right - Width)
+                    {
+                        Left = workArea.Right - Width - 24;
+                    }
+                    if (Top < workArea.Top || Top > workArea.Bottom - Height)
+                    {
+                        Top = workArea.Top + 24;
+                    }
+
+                    DebugLogger.Log($"Loaded window settings: Left={Left}, Top={Top}, Width={Width}, Height={Height}");
+                }
+                else
+                {
+                    // First run - use default positioning
+                    PositionWindow();
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+                PositionWindow(); // Fallback to default
+            }
+        }
+
+        private void SaveWindowSettings()
+        {
+            try
+            {
+                var config = _configService.Current;
+                
+                // Preserve existing config and only update window settings
+                var newConfig = new OverlayConfig
+                {
+                    Hotkey = config.Hotkey,
+                    Buttons = config.Buttons,
+                    Window = new WindowSettings
+                    {
+                        Left = Left,
+                        Top = Top,
+                        Width = Width,
+                        Height = Height
+                    }
+                };
+                
+                _configService.Save(newConfig);
+                DebugLogger.Log($"Saved window settings: Left={Left}, Top={Top}, Width={Width}, Height={Height}");
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+            }
+        }
+
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
             if (msg == NativeMethods.WM_HOTKEY && wParam.ToInt32() == _hotkeyId)
@@ -322,6 +438,11 @@ namespace RPOverlay.WPF
             {
                 DragMove();
             }
+        }
+
+        private void HideButton_Click(object sender, RoutedEventArgs e)
+        {
+            HideOverlay();
         }
 
         private void ShowOverlay()
@@ -426,6 +547,11 @@ namespace RPOverlay.WPF
 
             _isDisposed = true;
 
+            // Stop and save before cleanup
+            _autoSaveTimer.Stop();
+            SaveAllNotes();
+            SaveWindowSettings(); // Save window position and size
+
             if (_windowHandle != IntPtr.Zero)
             {
                 NativeMethods.UnregisterHotKey(_windowHandle, _hotkeyId);
@@ -444,6 +570,132 @@ namespace RPOverlay.WPF
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private void InitializeNoteTabs()
+        {
+            // Find the TabControl by name
+            var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
+            if (tabControl == null)
+            {
+                DebugLogger.Log("NotesTabControl not found in XAML");
+                return;
+            }
+
+            // Create default tabs
+            var defaultTabs = new[] { "Noteringar", "Patienter", "Händelser" };
+            
+            foreach (var tabName in defaultTabs)
+            {
+                var tab = new TabItem
+                {
+                    Header = tabName
+                };
+
+                var textBox = new System.Windows.Controls.TextBox
+                {
+                    AcceptsReturn = true,
+                    TextWrapping = TextWrapping.Wrap,
+                    Background = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(28, 28, 28)),
+                    Foreground = System.Windows.Media.Brushes.White,
+                    BorderBrush = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(47, 157, 255)),
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(8),
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                };
+
+                textBox.GotFocus += NoteTextBox_GotFocus;
+                textBox.LostFocus += NoteTextBox_LostFocus;
+
+                var noteTab = new NoteTab { Name = tabName };
+                _noteTabs[tabName] = noteTab;
+
+                // Load saved content
+                LoadNoteContent(noteTab);
+                textBox.Text = noteTab.Content;
+
+                // Bind textbox to note content
+                textBox.TextChanged += (s, e) =>
+                {
+                    if (_noteTabs.TryGetValue(tabName, out var nt))
+                    {
+                        nt.Content = textBox.Text;
+                    }
+                };
+
+                tab.Content = textBox;
+                tabControl.Items.Add(tab);
+            }
+
+            if (tabControl.Items.Count > 0)
+            {
+                tabControl.SelectedIndex = 0;
+            }
+        }
+
+        private void LoadNoteContent(NoteTab noteTab)
+        {
+            try
+            {
+                var filePath = Path.Combine(_notesDirectory, $"{noteTab.Name}.txt");
+                if (File.Exists(filePath))
+                {
+                    noteTab.Content = File.ReadAllText(filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+            }
+        }
+
+        private void SaveNoteContent(NoteTab noteTab)
+        {
+            try
+            {
+                var filePath = Path.Combine(_notesDirectory, $"{noteTab.Name}.txt");
+                File.WriteAllText(filePath, noteTab.Content);
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+            }
+        }
+
+        private void SaveAllNotes()
+        {
+            foreach (var noteTab in _noteTabs.Values)
+            {
+                SaveNoteContent(noteTab);
+            }
+        }
+
+        private void AutoSaveTimer_Tick(object? sender, EventArgs e)
+        {
+            SaveAllNotes();
+            DebugLogger.Log("Auto-saved all notes");
+        }
+
+        private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            // Resize from bottom-left corner (inverted horizontal)
+            double newWidth = Width - e.HorizontalChange;
+            double newHeight = Height + e.VerticalChange;
+
+            // Apply minimum constraints
+            if (newWidth >= MinWidth)
+            {
+                Width = newWidth;
+                // Adjust position to keep the right edge fixed
+                Left += e.HorizontalChange;
+            }
+
+            if (newHeight >= MinHeight)
+            {
+                Height = newHeight;
+            }
         }
     }
 }

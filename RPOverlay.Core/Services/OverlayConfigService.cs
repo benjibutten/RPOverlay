@@ -109,6 +109,27 @@ public sealed class OverlayConfigService : IDisposable
         File.WriteAllText(_configPath, json);
     }
 
+    public void Save(OverlayConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        
+        try
+        {
+            // Temporarily disable file watcher to avoid reload loop
+            _watcher.EnableRaisingEvents = false;
+            
+            var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(_configPath, json);
+            
+            Current = config;
+        }
+        finally
+        {
+            // Re-enable file watcher
+            _watcher.EnableRaisingEvents = true;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
