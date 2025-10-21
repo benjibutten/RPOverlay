@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace RPOverlay.WPF.Interop
 {
@@ -25,6 +26,11 @@ namespace RPOverlay.WPF.Interop
         public const int WS_EX_TOOLWINDOW = 0x00000080;
         public const int WS_EX_TOPMOST = 0x00000008;
         public const int WS_EX_NOACTIVATE = 0x08000000;
+
+        // Input constants
+        public const uint INPUT_KEYBOARD = 1;
+        public const uint KEYEVENTF_UNICODE = 0x0004;
+        public const uint KEYEVENTF_KEYUP = 0x0002;
 
         [DllImport("user32", SetLastError = true)]
         public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -56,5 +62,50 @@ namespace RPOverlay.WPF.Interop
 
         [DllImport("user32", SetLastError = true)]
         public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [DllImport("user32", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32", SetLastError = true)]
+        public static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32", SetLastError = true)]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32")]
+        public static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32", SetLastError = true)]
+        public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct INPUT
+        {
+            public uint type;
+            public InputUnion u;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        public struct InputUnion
+        {
+            [FieldOffset(0)]
+            public KEYBDINPUT ki;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
     }
 }

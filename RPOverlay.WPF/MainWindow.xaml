@@ -15,9 +15,9 @@
         Visibility="Visible"
         WindowStartupLocation="Manual"
         MinWidth="280"
-        MinHeight="300"
+        MinHeight="400"
         Width="320"
-        Height="500">
+        Height="600">
     <Grid Background="Transparent">
         <Border HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
@@ -58,18 +58,44 @@
                                        FontSize="10" />
                         </StackPanel>
                         
-                        <Button Grid.Column="1"
-                                Content="✕"
-                                Click="HideButton_Click"
-                                VerticalAlignment="Center"
-                                Width="30"
-                                Height="30"
-                                Background="Transparent"
-                                Foreground="White"
-                                BorderThickness="0"
-                                FontSize="18"
-                                Cursor="Hand"
-                                ToolTip="Dölj overlay (F9)"/>
+                        <!-- Button stack with Settings, Minimize and Close buttons -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="⚙"
+                                    Click="Settings_Click"
+                                    VerticalAlignment="Center"
+                                    Width="30"
+                                    Height="30"
+                                    Background="Transparent"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontSize="16"
+                                    Cursor="Hand"
+                                    Margin="0,0,5,0"
+                                    ToolTip="Inställningar"/>
+                            <Button Content="—"
+                                    Click="HideButton_Click"
+                                    VerticalAlignment="Center"
+                                    Width="30"
+                                    Height="30"
+                                    Background="Transparent"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontSize="18"
+                                    Cursor="Hand"
+                                    Margin="0,0,5,0"
+                                    ToolTip="Dölj overlay (F9)"/>
+                            <Button Content="✕"
+                                    Click="CloseButton_Click"
+                                    VerticalAlignment="Center"
+                                    Width="30"
+                                    Height="30"
+                                    Background="Transparent"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontSize="18"
+                                    Cursor="Hand"
+                                    ToolTip="Stäng applikation"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
                 
@@ -96,17 +122,39 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type models:OverlayButton}">
-                                <Button Content="{Binding Label}"
-                                        Tag="{Binding}"
-                                        Click="PresetButton_Click"
-                                        Margin="0,4,0,0"
-                                        HorizontalContentAlignment="Left"
-                                        FontSize="14"
-                                        Padding="12,10"
-                                        Background="#FF2F9DFF"
-                                        Foreground="White"
-                                        BorderThickness="0"
-                                        Cursor="Hand" />
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <Button Grid.Column="0"
+                                            Content="{Binding Label}"
+                                            Tag="{Binding}"
+                                            Click="PresetButton_Click"
+                                            HorizontalContentAlignment="Left"
+                                            FontSize="14"
+                                            Padding="12,10"
+                                            Background="#FF2F9DFF"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            Margin="0,0,5,0"/>
+                                    
+                                    <Button Grid.Column="1"
+                                            Content="→"
+                                            Tag="{Binding}"
+                                            Click="FiveMButton_Click"
+                                            FontSize="16"
+                                            FontWeight="Bold"
+                                            Width="40"
+                                            Padding="8,10"
+                                            Background="#FF4CAF50"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            ToolTip="Skicka direkt till FiveM"/>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -119,7 +167,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     
-                    <!-- Tab Headers -->
+                    <!-- TabControl with custom tab panel -->
                     <TabControl Grid.Row="0" Grid.RowSpan="2"
                                 x:Name="NotesTabControl"
                                 Background="Transparent"
@@ -161,6 +209,41 @@
                                 <Setter Property="Foreground" Value="White"/>
                             </Style>
                         </TabControl.Resources>
+                        
+                        <!-- Custom ItemsPanel with add button -->
+                        <TabControl.Template>
+                            <ControlTemplate TargetType="TabControl">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <!-- Tab headers with + button -->
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                                        <TabPanel IsItemsHost="True" Background="Transparent"/>
+                                        <Button Content="+"
+                                                Click="AddNoteTab_Click"
+                                                Width="24"
+                                                Height="24"
+                                                Background="#FF2F9DFF"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontSize="16"
+                                                FontWeight="Bold"
+                                                Cursor="Hand"
+                                                Margin="4,0,0,0"
+                                                VerticalAlignment="Top"
+                                                ToolTip="Lägg till ny anteckning"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Tab content -->
+                                    <ContentPresenter Grid.Row="1" 
+                                                      ContentSource="SelectedContent"
+                                                      Margin="0,0,0,0"/>
+                                </Grid>
+                            </ControlTemplate>
+                        </TabControl.Template>
                     </TabControl>
                     
                     <!-- Resize grip - higher z-index to ensure it's clickable -->

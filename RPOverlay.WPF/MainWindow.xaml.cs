@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -445,6 +446,121 @@ namespace RPOverlay.WPF
             HideOverlay();
         }
 
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            var result = System.Windows.MessageBox.Show(
+                "Är du säker på att du vill stänga applikationen?",
+                "Bekräfta stängning",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                System.Windows.Application.Current.Shutdown();
+            }
+        }
+
+        private void Settings_Click(object sender, RoutedEventArgs e)
+        {
+            var settingsWindow = new SettingsWindow
+            {
+                Owner = this
+            };
+            settingsWindow.ShowDialog();
+        }
+
+        private void AddNoteTab_Click(object sender, RoutedEventArgs e)
+        {
+            // Generate a unique default name
+            int counter = 1;
+            string tabName;
+            do
+            {
+                tabName = $"Ny anteckning {counter}";
+                counter++;
+            } while (_noteTabs.ContainsKey(tabName));
+
+            AddNoteTab(tabName, string.Empty, true);
+        }
+
+        private void AddNoteTab(string tabName, string initialContent = "", bool isNewTab = false)
+        {
+            var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
+            if (tabControl == null) return;
+
+            var tab = new TabItem
+            {
+                Header = tabName
+            };
+
+            var textBox = new System.Windows.Controls.TextBox
+            {
+                Name = "NoteTextBox",
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(28, 28, 28)),
+                Foreground = System.Windows.Media.Brushes.White,
+                BorderBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(47, 157, 255)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(8),
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            };
+
+            textBox.GotFocus += NoteTextBox_GotFocus;
+            textBox.LostFocus += NoteTextBox_LostFocus;
+
+            var noteTab = new NoteTab { Name = tabName, Content = initialContent };
+            _noteTabs[tabName] = noteTab;
+
+            // Load saved content if exists (unless it's a brand new tab)
+            if (!isNewTab)
+            {
+                LoadNoteContent(noteTab);
+            }
+            textBox.Text = noteTab.Content;
+
+            // Bind textbox to note content and update tab name based on first line
+            textBox.TextChanged += (s, e) =>
+            {
+                if (!_noteTabs.TryGetValue(tabName, out var nt))
+                    return;
+
+                nt.Content = textBox.Text;
+
+                // Extract first line as tab name
+                var lines = textBox.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                if (lines.Length > 0)
+                {
+                    var newName = lines[0].Trim();
+                    if (!string.IsNullOrWhiteSpace(newName) && newName.Length <= 20) // Limit tab name length
+                    {
+                        // Update tab header if name changed
+                        if (tab.Header.ToString() != newName && !_noteTabs.ContainsKey(newName))
+                        {
+                            // Remove old entry and add with new name
+                            _noteTabs.Remove(tabName);
+                            tabName = newName;
+                            _noteTabs[tabName] = nt;
+                            nt.Name = newName;
+                            tab.Header = newName;
+                        }
+                    }
+                }
+            };
+
+            tab.Content = textBox;
+            tabControl.Items.Add(tab);
+            tabControl.SelectedItem = tab;
+            
+            // Focus the textbox if it's a new tab
+            if (isNewTab)
+            {
+                textBox.Focus();
+            }
+        }
+
         private void ShowOverlay()
         {
             if (_windowHandle == IntPtr.Zero)
@@ -500,6 +616,133 @@ namespace RPOverlay.WPF
             if (!noteHasFocus && _lastForegroundWindow != IntPtr.Zero)
             {
                 NativeMethods.SetForegroundWindow(_lastForegroundWindow);
+            }
+        }
+
+        private async void FiveMButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.Button button || button.Tag is not OverlayButton preset)
+            {
+                return;
+            }
+
+            try
+            {
+                // Find FiveM window
+                var fivemWindow = FindFiveMWindow();
+                if (fivemWindow == IntPtr.Zero)
+                {
+                    System.Windows.MessageBox.Show(
+                        "Kunde inte hitta FiveM-fönstret. Se till att FiveM körs.",
+                        "FiveM ej funnet",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Switch to FiveM
+                NativeMethods.SetForegroundWindow(fivemWindow);
+                await Task.Delay(300); // Wait for window to focus
+
+                // Press T to open chat
+                SendKey('T');
+                await Task.Delay(150); // Wait for chat to open
+
+                // Type the command
+                SendText(preset.Text);
+                
+                // Optionally press Enter to send the command automatically
+                // Uncomment the line below if you want the command to be sent automatically:
+                // SendKey(Keys.Enter);
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+                System.Windows.MessageBox.Show(
+                    $"Ett fel uppstod: {ex.Message}",
+                    "Fel",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private IntPtr FindFiveMWindow()
+        {
+            IntPtr foundWindow = IntPtr.Zero;
+
+            NativeMethods.EnumWindows((hWnd, lParam) =>
+            {
+                if (!NativeMethods.IsWindowVisible(hWnd))
+                    return true;
+
+                int length = NativeMethods.GetWindowTextLength(hWnd);
+                if (length == 0)
+                    return true;
+
+                var builder = new System.Text.StringBuilder(length + 1);
+                NativeMethods.GetWindowText(hWnd, builder, builder.Capacity);
+                var title = builder.ToString();
+
+                // FiveM windows typically contain "FiveM" or "GTA" in their title
+                if (title.Contains("FiveM", StringComparison.OrdinalIgnoreCase) ||
+                    title.Contains("Grand Theft Auto V", StringComparison.OrdinalIgnoreCase))
+                {
+                    foundWindow = hWnd;
+                    return false; // Stop enumeration
+                }
+
+                return true; // Continue enumeration
+            }, IntPtr.Zero);
+
+            return foundWindow;
+        }
+
+        private void SendKey(char key)
+        {
+            // Send key down
+            var input = new NativeMethods.INPUT
+            {
+                type = NativeMethods.INPUT_KEYBOARD,
+                u = new NativeMethods.InputUnion
+                {
+                    ki = new NativeMethods.KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = key,
+                        dwFlags = NativeMethods.KEYEVENTF_UNICODE,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
+
+            // Send key up
+            var inputUp = new NativeMethods.INPUT
+            {
+                type = NativeMethods.INPUT_KEYBOARD,
+                u = new NativeMethods.InputUnion
+                {
+                    ki = new NativeMethods.KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = key,
+                        dwFlags = NativeMethods.KEYEVENTF_UNICODE | NativeMethods.KEYEVENTF_KEYUP,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
+
+            NativeMethods.SendInput(1, new[] { input }, System.Runtime.InteropServices.Marshal.SizeOf(typeof(NativeMethods.INPUT)));
+            NativeMethods.SendInput(1, new[] { inputUp }, System.Runtime.InteropServices.Marshal.SizeOf(typeof(NativeMethods.INPUT)));
+        }
+
+        private void SendText(string text)
+        {
+            foreach (char c in text)
+            {
+                SendKey(c);
+                System.Threading.Thread.Sleep(10); // Small delay between characters
             }
         }
 
@@ -587,46 +830,7 @@ namespace RPOverlay.WPF
             
             foreach (var tabName in defaultTabs)
             {
-                var tab = new TabItem
-                {
-                    Header = tabName
-                };
-
-                var textBox = new System.Windows.Controls.TextBox
-                {
-                    AcceptsReturn = true,
-                    TextWrapping = TextWrapping.Wrap,
-                    Background = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(28, 28, 28)),
-                    Foreground = System.Windows.Media.Brushes.White,
-                    BorderBrush = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(47, 157, 255)),
-                    BorderThickness = new Thickness(1),
-                    Padding = new Thickness(8),
-                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-                };
-
-                textBox.GotFocus += NoteTextBox_GotFocus;
-                textBox.LostFocus += NoteTextBox_LostFocus;
-
-                var noteTab = new NoteTab { Name = tabName };
-                _noteTabs[tabName] = noteTab;
-
-                // Load saved content
-                LoadNoteContent(noteTab);
-                textBox.Text = noteTab.Content;
-
-                // Bind textbox to note content
-                textBox.TextChanged += (s, e) =>
-                {
-                    if (_noteTabs.TryGetValue(tabName, out var nt))
-                    {
-                        nt.Content = textBox.Text;
-                    }
-                };
-
-                tab.Content = textBox;
-                tabControl.Items.Add(tab);
+                AddNoteTab(tabName, string.Empty, false);
             }
 
             if (tabControl.Items.Count > 0)

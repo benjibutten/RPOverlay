@@ -8,29 +8,62 @@
         Height="600"
         Width="700"
         WindowStartupLocation="CenterScreen"
-        Background="#FF1E1E1E"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
         ResizeMode="CanResize">
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Header -->
-        <TextBlock Grid.Row="0"
-                   Text="Kommando Inställningar"
-                   FontSize="24"
-                   FontWeight="SemiBold"
-                   Foreground="White"
-                   Margin="0,0,0,20"/>
-
-        <!-- Commands List -->
-        <Grid Grid.Row="1">
+    <Border Background="#FF1E1E1E"
+            CornerRadius="12"
+            BorderBrush="#FF2F9DFF"
+            BorderThickness="1">
+        <Grid Margin="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
+
+            <!-- Custom Header -->
+            <Border Grid.Row="0"
+                    Background="#22FFFFFF"
+                    CornerRadius="12,12,0,0"
+                    Padding="20,12"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                    Cursor="SizeAll">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="Inställningar"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="White"
+                               VerticalAlignment="Center"/>
+
+                    <Button Grid.Column="1"
+                            Content="✕"
+                            Click="CloseButton_Click"
+                            VerticalAlignment="Center"
+                            Width="30"
+                            Height="30"
+                            Background="Transparent"
+                            Foreground="White"
+                            BorderThickness="0"
+                            FontSize="18"
+                            Cursor="Hand"
+                            ToolTip="Stäng"/>
+                </Grid>
+            </Border>
+
+            <!-- Content Area -->
+            <Grid Grid.Row="1" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Margin="0,0,0,10">
                 <Grid.ColumnDefinitions>
@@ -156,7 +189,7 @@
         </Grid>
 
         <!-- Footer Buttons -->
-        <Grid Grid.Row="2" Margin="0,20,0,0">
+        <Grid Grid.Row="2" Margin="20">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -185,4 +218,5 @@
                     Cursor="Hand"/>
         </Grid>
     </Grid>
+    </Border>
 </Window>
