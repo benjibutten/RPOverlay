@@ -175,7 +175,7 @@
                         <Thumb x:Name="ResizeThumb"
                                Width="20"
                                Height="20"
-                               Cursor="SizeNWSE"
+                               Cursor="SizeNESW"
                                DragDelta="ResizeThumb_DragDelta">
                             <Thumb.Template>
                                 <ControlTemplate>
