@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
@@ -62,6 +63,7 @@ namespace RPOverlay.WPF
         private readonly DispatcherTimer _autoSaveTimer;
         private readonly string _notesDirectory;
         private readonly Dictionary<string, NoteTab> _noteTabs = new();
+        private static bool _debugMode = false;
 
         public MainWindow()
         {
@@ -69,6 +71,16 @@ namespace RPOverlay.WPF
             {
                 InitializeComponent();
                 DataContext = this;
+
+                // Check for debug mode argument
+                var args = Environment.GetCommandLineArgs();
+                _debugMode = args.Any(arg => arg.Equals("--debug", StringComparison.OrdinalIgnoreCase) || 
+                                              arg.Equals("/debug", StringComparison.OrdinalIgnoreCase));
+                
+                if (_debugMode)
+                {
+                    DebugLogger.Log("DEBUG MODE ENABLED - Will use Notepad instead of FiveM");
+                }
 
                 DebugLogger.Log("MainWindow constructor: Creating config service...");
                 _configService = new OverlayConfigService(new AppDataOverlayConfigPathProvider());
@@ -134,7 +146,7 @@ namespace RPOverlay.WPF
             ApplyWindowStyles();
             LoadWindowSettings(); // Load saved position and size
             RegisterHotkey();
-            HideOverlay();
+            ShowOverlay(); // Start with overlay visible
             _autoSaveTimer.Start(); // Start auto-save timer
             Dispatcher.BeginInvoke(new Action(PositionWindow), DispatcherPriority.Background);
             DebugLogger.Log("OnLoaded: Complete");
@@ -480,10 +492,10 @@ namespace RPOverlay.WPF
                 counter++;
             } while (_noteTabs.ContainsKey(tabName));
 
-            AddNoteTab(tabName, string.Empty, true);
+            AddNoteTab(tabName, string.Empty, isNewTab: true, isProtectedTab: false);
         }
 
-        private void AddNoteTab(string tabName, string initialContent = "", bool isNewTab = false)
+        private void AddNoteTab(string tabName, string initialContent = "", bool isNewTab = false, bool isProtectedTab = false)
         {
             var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
             if (tabControl == null) return;
@@ -521,7 +533,7 @@ namespace RPOverlay.WPF
             }
             textBox.Text = noteTab.Content;
 
-            // Bind textbox to note content and update tab name based on first line
+            // Bind textbox to note content and update tab name based on first line (only if not protected)
             textBox.TextChanged += (s, e) =>
             {
                 if (!_noteTabs.TryGetValue(tabName, out var nt))
@@ -529,22 +541,26 @@ namespace RPOverlay.WPF
 
                 nt.Content = textBox.Text;
 
-                // Extract first line as tab name
-                var lines = textBox.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                if (lines.Length > 0)
+                // Only update tab name if it's not a protected default tab
+                if (!isProtectedTab)
                 {
-                    var newName = lines[0].Trim();
-                    if (!string.IsNullOrWhiteSpace(newName) && newName.Length <= 20) // Limit tab name length
+                    // Extract first line as tab name
+                    var lines = textBox.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (lines.Length > 0)
                     {
-                        // Update tab header if name changed
-                        if (tab.Header.ToString() != newName && !_noteTabs.ContainsKey(newName))
+                        var newName = lines[0].Trim();
+                        if (!string.IsNullOrWhiteSpace(newName) && newName.Length <= 20) // Limit tab name length
                         {
-                            // Remove old entry and add with new name
-                            _noteTabs.Remove(tabName);
-                            tabName = newName;
-                            _noteTabs[tabName] = nt;
-                            nt.Name = newName;
-                            tab.Header = newName;
+                            // Update tab header if name changed
+                            if (tab.Header.ToString() != newName && !_noteTabs.ContainsKey(newName))
+                            {
+                                // Remove old entry and add with new name
+                                _noteTabs.Remove(tabName);
+                                tabName = newName;
+                                _noteTabs[tabName] = nt;
+                                nt.Name = newName;
+                                tab.Header = newName;
+                            }
                         }
                     }
                 }
@@ -632,9 +648,10 @@ namespace RPOverlay.WPF
                 var fivemWindow = FindFiveMWindow();
                 if (fivemWindow == IntPtr.Zero)
                 {
+                    var targetApp = _debugMode ? "Notepad" : "FiveM";
                     System.Windows.MessageBox.Show(
-                        "Kunde inte hitta FiveM-fönstret. Se till att FiveM körs.",
-                        "FiveM ej funnet",
+                        $"Kunde inte hitta {targetApp}-fönstret. Se till att {targetApp} körs.",
+                        $"{targetApp} ej funnet",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
                     return;
@@ -683,12 +700,26 @@ namespace RPOverlay.WPF
                 NativeMethods.GetWindowText(hWnd, builder, builder.Capacity);
                 var title = builder.ToString();
 
-                // FiveM windows typically contain "FiveM" or "GTA" in their title
-                if (title.Contains("FiveM", StringComparison.OrdinalIgnoreCase) ||
-                    title.Contains("Grand Theft Auto V", StringComparison.OrdinalIgnoreCase))
+                // In debug mode, look for Notepad instead of FiveM
+                if (_debugMode)
                 {
-                    foundWindow = hWnd;
-                    return false; // Stop enumeration
+                    if (title.Contains("Notepad", StringComparison.OrdinalIgnoreCase) ||
+                        title.Contains("Anteckningar", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foundWindow = hWnd;
+                        DebugLogger.Log($"Debug mode: Found Notepad window: {title}");
+                        return false; // Stop enumeration
+                    }
+                }
+                else
+                {
+                    // FiveM windows typically contain "FiveM" or "GTA" in their title
+                    if (title.Contains("FiveM", StringComparison.OrdinalIgnoreCase) ||
+                        title.Contains("Grand Theft Auto V", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foundWindow = hWnd;
+                        return false; // Stop enumeration
+                    }
                 }
 
                 return true; // Continue enumeration
@@ -825,12 +856,12 @@ namespace RPOverlay.WPF
                 return;
             }
 
-            // Create default tabs
-            var defaultTabs = new[] { "Noteringar", "Patienter", "Händelser" };
+            // Create default tabs (these won't change name based on first line)
+            var defaultTabs = new[] { "Noteringar", "Patienter" };
             
             foreach (var tabName in defaultTabs)
             {
-                AddNoteTab(tabName, string.Empty, false);
+                AddNoteTab(tabName, string.Empty, false, isProtectedTab: true);
             }
 
             if (tabControl.Items.Count > 0)
