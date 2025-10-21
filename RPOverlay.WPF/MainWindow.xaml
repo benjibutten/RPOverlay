@@ -47,19 +47,56 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="RP Overlay"
-                                       FontWeight="SemiBold"
-                                       Foreground="White"
-                                       FontSize="18" />
-                            <TextBlock Text="Sjukhus-overlay (Dra för att flytta)"
-                                       Margin="0,2,0,0"
-                                       Foreground="#FFD0D0D0"
-                                       FontSize="10" />
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <!-- Status indicator -->
+                            <Ellipse x:Name="StatusIndicator"
+                                     Width="12" 
+                                     Height="12"
+                                     Fill="#FF2F9DFF"
+                                     Margin="0,0,8,0"
+                                     VerticalAlignment="Center"
+                                     ToolTip="Blå = Inaktiv (click-through), Grön = Aktiv (interaktiv)"/>
+                            
+                            <StackPanel>
+                                <TextBlock Text="RP Overlay"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"
+                                           FontSize="18" />
+                                <TextBlock Text="Sjukhus-overlay (Dra för att flytta)"
+                                           Margin="0,2,0,0"
+                                           Foreground="#FFD0D0D0"
+                                           FontSize="10" />
+                            </StackPanel>
                         </StackPanel>
                         
-                        <!-- Button stack with Settings, Minimize and Close buttons -->
+                        <!-- Button stack with Zoom, Settings, Minimize and Close buttons -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="A−"
+                                    Click="ZoomOut_Click"
+                                    VerticalAlignment="Center"
+                                    Width="30"
+                                    Height="30"
+                                    Background="Transparent"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontSize="12"
+                                    FontWeight="Bold"
+                                    Cursor="Hand"
+                                    Margin="0,0,2,0"
+                                    ToolTip="Minska textstorlek"/>
+                            <Button Content="A+"
+                                    Click="ZoomIn_Click"
+                                    VerticalAlignment="Center"
+                                    Width="30"
+                                    Height="30"
+                                    Background="Transparent"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    FontSize="12"
+                                    FontWeight="Bold"
+                                    Cursor="Hand"
+                                    Margin="0,0,5,0"
+                                    ToolTip="Öka textstorlek"/>
                             <Button Content="⚙"
                                     Click="Settings_Click"
                                     VerticalAlignment="Center"

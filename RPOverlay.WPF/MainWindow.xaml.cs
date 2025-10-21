@@ -64,6 +64,11 @@ namespace RPOverlay.WPF
         private readonly string _notesDirectory;
         private readonly Dictionary<string, NoteTab> _noteTabs = new();
         private static bool _debugMode = false;
+        private double _noteFontSize = 12.0; // Default font size
+        private bool _isClickThrough = true; // Start in click-through mode
+        private bool _overlayInteractive = false; // Track if overlay is interactive
+        private readonly DispatcherTimer _mouseCheckTimer;
+        private const int TOGGLE_MOUSE_BUTTON = NativeMethods.VK_XBUTTON2; // Side mouse button 5 (forward)
 
         public MainWindow()
         {
@@ -99,6 +104,13 @@ namespace RPOverlay.WPF
                     Interval = TimeSpan.FromSeconds(30)
                 };
                 _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+
+                // Initialize mouse check timer for click-through detection
+                _mouseCheckTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(50) // Check every 50ms
+                };
+                _mouseCheckTimer.Tick += MouseCheckTimer_Tick;
 
                 Loaded += OnLoaded;
                 Unloaded += OnUnloaded;
@@ -147,9 +159,15 @@ namespace RPOverlay.WPF
             LoadWindowSettings(); // Load saved position and size
             RegisterHotkey();
             ShowOverlay(); // Start with overlay visible
+            SetClickThrough(true); // Start in click-through mode
+            
+            // Set initial visual state - inactive/click-through
+            this.Cursor = System.Windows.Input.Cursors.None; // Hide cursor initially
+            
             _autoSaveTimer.Start(); // Start auto-save timer
+            _mouseCheckTimer.Start(); // Start mouse check timer
             Dispatcher.BeginInvoke(new Action(PositionWindow), DispatcherPriority.Background);
-            DebugLogger.Log("OnLoaded: Complete");
+            DebugLogger.Log("OnLoaded: Complete - Overlay starts in click-through mode (cursor hidden), press Mouse Button 5 to toggle");
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -481,6 +499,32 @@ namespace RPOverlay.WPF
             settingsWindow.ShowDialog();
         }
 
+        private void ZoomIn_Click(object sender, RoutedEventArgs e)
+        {
+            _noteFontSize = Math.Min(_noteFontSize + 2, 32); // Max 32
+            UpdateAllNotesFontSize();
+        }
+
+        private void ZoomOut_Click(object sender, RoutedEventArgs e)
+        {
+            _noteFontSize = Math.Max(_noteFontSize - 2, 8); // Min 8
+            UpdateAllNotesFontSize();
+        }
+
+        private void UpdateAllNotesFontSize()
+        {
+            var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
+            if (tabControl == null) return;
+
+            foreach (TabItem tab in tabControl.Items)
+            {
+                if (tab.Content is System.Windows.Controls.TextBox textBox)
+                {
+                    textBox.FontSize = _noteFontSize;
+                }
+            }
+        }
+
         private void AddNoteTab_Click(object sender, RoutedEventArgs e)
         {
             // Generate a unique default name
@@ -517,7 +561,29 @@ namespace RPOverlay.WPF
                     System.Windows.Media.Color.FromRgb(47, 157, 255)),
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(8),
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                FontSize = _noteFontSize
+            };
+
+            // Auto-focus on mouse enter to avoid clicking in FiveM
+            textBox.MouseEnter += (s, e) =>
+            {
+                if (!textBox.IsFocused)
+                {
+                    textBox.Focus();
+                    textBox.Background = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(35, 35, 35)); // Slightly lighter when active
+                    DebugLogger.Log("TextBox auto-focused on mouse enter");
+                }
+            };
+
+            textBox.MouseLeave += (s, e) =>
+            {
+                if (!textBox.IsFocused)
+                {
+                    textBox.Background = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(28, 28, 28)); // Back to normal
+                }
             };
 
             textBox.GotFocus += NoteTextBox_GotFocus;
@@ -644,9 +710,9 @@ namespace RPOverlay.WPF
 
             try
             {
-                // Find FiveM window
-                var fivemWindow = FindFiveMWindow();
-                if (fivemWindow == IntPtr.Zero)
+                // Find target window
+                var targetWindow = FindFiveMWindow();
+                if (targetWindow == IntPtr.Zero)
                 {
                     var targetApp = _debugMode ? "Notepad" : "FiveM";
                     System.Windows.MessageBox.Show(
@@ -657,20 +723,194 @@ namespace RPOverlay.WPF
                     return;
                 }
 
-                // Switch to FiveM
-                NativeMethods.SetForegroundWindow(fivemWindow);
-                await Task.Delay(300); // Wait for window to focus
+                DebugLogger.Log($"Found target window: {targetWindow}");
 
-                // Press T to open chat
-                SendKey('T');
-                await Task.Delay(150); // Wait for chat to open
-
-                // Type the command
-                SendText(preset.Text);
+                // Get the process ID and thread ID
+                uint targetThreadId = NativeMethods.GetWindowThreadProcessId(targetWindow, out uint processId);
+                uint currentThreadId = NativeMethods.GetCurrentThreadId();
                 
-                // Optionally press Enter to send the command automatically
-                // Uncomment the line below if you want the command to be sent automatically:
-                // SendKey(Keys.Enter);
+                DebugLogger.Log($"Target thread: {targetThreadId}, Current thread: {currentThreadId}, Process ID: {processId}");
+                
+                // Attach our thread input to the target window thread
+                // This allows us to set focus more reliably
+                bool attached = false;
+                if (targetThreadId != currentThreadId)
+                {
+                    attached = NativeMethods.AttachThreadInput(currentThreadId, targetThreadId, true);
+                    DebugLogger.Log($"AttachThreadInput result: {attached}");
+                }
+                
+                // Allow our process to set foreground
+                NativeMethods.AllowSetForegroundWindow(processId);
+                
+                // Restore the window if minimized
+                NativeMethods.ShowWindow(targetWindow, NativeMethods.SW_RESTORE);
+                await Task.Delay(150);
+
+                // Bring window to top
+                NativeMethods.BringWindowToTop(targetWindow);
+                await Task.Delay(100);
+                
+                // Set as foreground window
+                NativeMethods.SetForegroundWindow(targetWindow);
+                await Task.Delay(200);
+                
+                // Set focus to the window
+                NativeMethods.SetFocus(targetWindow);
+                await Task.Delay(200);
+                
+                // Verify the window is now foreground
+                var foreground = NativeMethods.GetForegroundWindow();
+                DebugLogger.Log($"Foreground window after focus attempts: {foreground} (expected: {targetWindow})");
+                
+                if (foreground != targetWindow)
+                {
+                    DebugLogger.Log("Warning: Failed to set foreground. Trying one more time...");
+                    NativeMethods.SetForegroundWindow(targetWindow);
+                    await Task.Delay(300);
+                    NativeMethods.SetFocus(targetWindow);
+                    await Task.Delay(200);
+                }
+
+                DebugLogger.Log("Window should be active now, sending T key");
+
+                // In debug mode with Notepad, use Clipboard + Ctrl+V method
+                if (_debugMode)
+                {
+                    DebugLogger.Log("Debug mode: Using Clipboard + Ctrl+V method");
+                    DebugLogger.Log($"Text to send: '{preset.Text}' (length: {preset.Text.Length})");
+                    
+                    // Make absolutely sure Notepad is ready
+                    await Task.Delay(500);
+                    
+                    DebugLogger.Log("Sending T key...");
+                    SendKeyPress(NativeMethods.VK_T);
+                    await Task.Delay(300);
+                    DebugLogger.Log("T key sent");
+                    
+                    // Save current clipboard content
+                    string? originalClipboard = null;
+                    try
+                    {
+                        originalClipboard = System.Windows.Clipboard.GetText();
+                        DebugLogger.Log($"Original clipboard saved: '{originalClipboard?.Substring(0, Math.Min(50, originalClipboard?.Length ?? 0))}'");
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLogger.Log($"Could not save original clipboard: {ex.Message}");
+                    }
+                    
+                    try
+                    {
+                        // Put our text in clipboard - try multiple times to ensure it works
+                        bool clipboardSet = false;
+                        for (int i = 0; i < 3 && !clipboardSet; i++)
+                        {
+                            try
+                            {
+                                DebugLogger.Log($"Clipboard attempt {i + 1}: Clearing...");
+                                System.Windows.Clipboard.Clear();
+                                await Task.Delay(50);
+                                
+                                DebugLogger.Log($"Clipboard attempt {i + 1}: Setting text...");
+                                System.Windows.Clipboard.SetText(preset.Text);
+                                await Task.Delay(50);
+                                
+                                // Verify it was set
+                                var verify = System.Windows.Clipboard.GetText();
+                                DebugLogger.Log($"Clipboard attempt {i + 1}: Verification read: '{verify?.Substring(0, Math.Min(50, verify?.Length ?? 0))}'");
+                                
+                                if (verify == preset.Text)
+                                {
+                                    clipboardSet = true;
+                                    DebugLogger.Log($"✓ Clipboard set successfully on attempt {i + 1}");
+                                }
+                                else
+                                {
+                                    DebugLogger.Log($"✗ Clipboard verification failed on attempt {i + 1}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugLogger.Log($"✗ Clipboard attempt {i + 1} failed: {ex.Message}");
+                                await Task.Delay(100);
+                            }
+                        }
+                        
+                        if (!clipboardSet)
+                        {
+                            DebugLogger.Log("ERROR: Failed to set clipboard after 3 attempts");
+                            System.Windows.MessageBox.Show(
+                                "Kunde inte kopiera texten till clipboard. Försök igen.",
+                                "Clipboard-fel",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning);
+                            return;
+                        }
+                        
+                        // Extra wait to ensure clipboard is ready
+                        await Task.Delay(200);
+                        
+                        // Verify window still has focus
+                        var currentForeground = NativeMethods.GetForegroundWindow();
+                        DebugLogger.Log($"Before Ctrl+V - Foreground window: {currentForeground} (expected: {targetWindow})");
+                        
+                        if (currentForeground != targetWindow)
+                        {
+                            DebugLogger.Log("WARNING: Lost focus, re-focusing...");
+                            NativeMethods.SetForegroundWindow(targetWindow);
+                            await Task.Delay(200);
+                        }
+                        
+                        DebugLogger.Log("Sending Ctrl+V...");
+                        SendCtrlV();
+                        await Task.Delay(300);
+                        
+                        DebugLogger.Log("✓ Ctrl+V sent successfully");
+                        
+                        // Final verification
+                        currentForeground = NativeMethods.GetForegroundWindow();
+                        DebugLogger.Log($"After Ctrl+V - Foreground window: {currentForeground}");
+                    }
+                    finally
+                    {
+                        // Restore original clipboard if possible
+                        if (!string.IsNullOrEmpty(originalClipboard))
+                        {
+                            try
+                            {
+                                await Task.Delay(200);
+                                System.Windows.Clipboard.SetText(originalClipboard);
+                                DebugLogger.Log("Original clipboard restored");
+                            }
+                            catch (Exception ex)
+                            {
+                                DebugLogger.Log($"Could not restore clipboard: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // For FiveM, use SendInput (original method)
+                    SendKeyPress(NativeMethods.VK_T);
+                    await Task.Delay(200);
+                    
+                    DebugLogger.Log($"Sending text: {preset.Text}");
+                    SendText(preset.Text);
+                    
+                    // Wait for text to be sent before detaching
+                    await Task.Delay(200);
+                }
+                
+                DebugLogger.Log("Text sent successfully");
+                
+                // Detach thread input AFTER everything is done
+                if (attached)
+                {
+                    NativeMethods.AttachThreadInput(currentThreadId, targetThreadId, false);
+                    DebugLogger.Log("Detached thread input");
+                }
             }
             catch (Exception ex)
             {
@@ -728,6 +968,73 @@ namespace RPOverlay.WPF
             return foundWindow;
         }
 
+        private IntPtr FindNotepadEditControl(IntPtr notepadWindow)
+        {
+            DebugLogger.Log("Searching for Notepad Edit control...");
+            
+            // Notepad has a simple structure: Main window -> Edit control (class "Edit")
+            IntPtr editControl = NativeMethods.FindWindowEx(notepadWindow, IntPtr.Zero, "Edit", null);
+            
+            if (editControl == IntPtr.Zero)
+            {
+                DebugLogger.Log("Edit control not found directly, searching deeper...");
+                // Sometimes there might be intermediate windows, search all children
+                IntPtr child = NativeMethods.FindWindowEx(notepadWindow, IntPtr.Zero, null, null);
+                while (child != IntPtr.Zero && editControl == IntPtr.Zero)
+                {
+                    editControl = NativeMethods.FindWindowEx(child, IntPtr.Zero, "Edit", null);
+                    if (editControl != IntPtr.Zero)
+                    {
+                        DebugLogger.Log($"Found Edit control in child window: {editControl}");
+                        break;
+                    }
+                    child = NativeMethods.FindWindowEx(notepadWindow, child, null, null);
+                }
+            }
+            else
+            {
+                DebugLogger.Log($"Found Edit control directly: {editControl}");
+            }
+            
+            return editControl;
+        }
+
+        private void SendKeyPress(byte virtualKeyCode)
+        {
+            DebugLogger.Log($"SendKeyPress: Using keybd_event for VK {virtualKeyCode}");
+            
+            // Send key down
+            NativeMethods.keybd_event(virtualKeyCode, 0, 0, UIntPtr.Zero);
+            System.Threading.Thread.Sleep(10);
+            
+            // Send key up
+            NativeMethods.keybd_event(virtualKeyCode, 0, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
+            
+            DebugLogger.Log($"SendKeyPress: Sent key press for VK {virtualKeyCode}");
+        }
+
+        private void SendCtrlV()
+        {
+            DebugLogger.Log("SendCtrlV: Using keybd_event for Ctrl+V");
+            
+            // Press Ctrl down
+            NativeMethods.keybd_event(NativeMethods.VK_CONTROL, 0, 0, UIntPtr.Zero);
+            System.Threading.Thread.Sleep(10);
+            
+            // Press V down
+            NativeMethods.keybd_event(NativeMethods.VK_V, 0, 0, UIntPtr.Zero);
+            System.Threading.Thread.Sleep(10);
+            
+            // Release V
+            NativeMethods.keybd_event(NativeMethods.VK_V, 0, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
+            System.Threading.Thread.Sleep(10);
+            
+            // Release Ctrl
+            NativeMethods.keybd_event(NativeMethods.VK_CONTROL, 0, NativeMethods.KEYEVENTF_KEYUP, UIntPtr.Zero);
+            
+            DebugLogger.Log("SendCtrlV: Sent Ctrl+V key presses");
+        }
+
         private void SendKey(char key)
         {
             // Send key down
@@ -764,17 +1071,53 @@ namespace RPOverlay.WPF
                 }
             };
 
-            NativeMethods.SendInput(1, new[] { input }, System.Runtime.InteropServices.Marshal.SizeOf(typeof(NativeMethods.INPUT)));
-            NativeMethods.SendInput(1, new[] { inputUp }, System.Runtime.InteropServices.Marshal.SizeOf(typeof(NativeMethods.INPUT)));
+            var inputs = new[] { input, inputUp };
+            NativeMethods.SendInput((uint)inputs.Length, inputs, System.Runtime.InteropServices.Marshal.SizeOf(typeof(NativeMethods.INPUT)));
         }
 
         private void SendText(string text)
         {
+            DebugLogger.Log($"SendText: Starting to send {text.Length} characters");
             foreach (char c in text)
             {
                 SendKey(c);
-                System.Threading.Thread.Sleep(10); // Small delay between characters
+                System.Threading.Thread.Sleep(15); // Slightly longer delay for reliability
             }
+            DebugLogger.Log("SendText: Completed");
+        }
+
+        private void SendMessageKey(IntPtr targetWindow, char key)
+        {
+            DebugLogger.Log($"SendMessageKey: Sending key '{key}' to window {targetWindow}");
+            
+            // Send WM_KEYDOWN
+            NativeMethods.SendMessage(targetWindow, NativeMethods.WM_KEYDOWN, (IntPtr)key, IntPtr.Zero);
+            System.Threading.Thread.Sleep(50);
+            
+            // Send WM_CHAR
+            NativeMethods.SendMessage(targetWindow, NativeMethods.WM_CHAR, (IntPtr)key, IntPtr.Zero);
+            System.Threading.Thread.Sleep(50);
+            
+            // Send WM_KEYUP
+            NativeMethods.SendMessage(targetWindow, NativeMethods.WM_KEYUP, (IntPtr)key, IntPtr.Zero);
+            
+            DebugLogger.Log($"SendMessageKey: Completed for '{key}'");
+        }
+
+        private void SendTextViaMessage(IntPtr targetWindow, string text)
+        {
+            DebugLogger.Log($"SendTextViaMessage: Starting to send {text.Length} characters to window {targetWindow}");
+            
+            foreach (char c in text)
+            {
+                DebugLogger.Log($"SendTextViaMessage: Sending '{c}'");
+                
+                // For most text input, WM_CHAR is sufficient
+                NativeMethods.SendMessage(targetWindow, NativeMethods.WM_CHAR, (IntPtr)c, IntPtr.Zero);
+                System.Threading.Thread.Sleep(20); // Small delay between characters
+            }
+            
+            DebugLogger.Log("SendTextViaMessage: Completed");
         }
 
         private void NoteTextBox_GotFocus(object sender, RoutedEventArgs e)
@@ -785,25 +1128,46 @@ namespace RPOverlay.WPF
                 return;
             }
 
+            DebugLogger.Log("NoteTextBox got focus, enabling window activation");
+
             var exStyle = NativeMethods.GetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE);
             exStyle &= ~NativeMethods.WS_EX_NOACTIVATE;
             NativeMethods.SetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE, exStyle);
             
             // Activate the window so keyboard input works
             NativeMethods.SetForegroundWindow(_windowHandle);
+            
+            // Make sure the textbox is actually ready for input
+            if (sender is System.Windows.Controls.TextBox textBox)
+            {
+                textBox.IsReadOnly = false;
+                DebugLogger.Log("TextBox set to not readonly");
+            }
         }
 
         private void NoteTextBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            // When textbox loses focus, restore no-activate style
-            if (_windowHandle == IntPtr.Zero)
+            DebugLogger.Log("NoteTextBox lost focus");
+            
+            // Don't immediately restore no-activate style
+            // Let it stay activatable for a moment to allow re-focusing
+            Task.Delay(100).ContinueWith(_ =>
             {
-                return;
-            }
-
-            var exStyle = NativeMethods.GetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE);
-            exStyle |= NativeMethods.WS_EX_NOACTIVATE;
-            NativeMethods.SetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE, exStyle);
+                Dispatcher.Invoke(() =>
+                {
+                    // Only restore if no textbox currently has focus
+                    var focusedElement = Keyboard.FocusedElement as FrameworkElement;
+                    var noteHasFocus = string.Equals(focusedElement?.Name, "NoteTextBox", StringComparison.Ordinal);
+                    
+                    if (!noteHasFocus && _windowHandle != IntPtr.Zero)
+                    {
+                        var exStyle = NativeMethods.GetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE);
+                        exStyle |= NativeMethods.WS_EX_NOACTIVATE;
+                        NativeMethods.SetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE, exStyle);
+                        DebugLogger.Log("Restored no-activate style");
+                    }
+                });
+            });
         }
 
         protected override void OnClosed(EventArgs e)
@@ -823,6 +1187,7 @@ namespace RPOverlay.WPF
 
             // Stop and save before cleanup
             _autoSaveTimer.Stop();
+            _mouseCheckTimer.Stop();
             SaveAllNotes();
             SaveWindowSettings(); // Save window position and size
 
@@ -911,6 +1276,93 @@ namespace RPOverlay.WPF
         {
             SaveAllNotes();
             DebugLogger.Log("Auto-saved all notes");
+        }
+
+        private void MouseCheckTimer_Tick(object? sender, EventArgs e)
+        {
+            // Check if toggle button is pressed
+            short buttonState = NativeMethods.GetAsyncKeyState(TOGGLE_MOUSE_BUTTON);
+            bool buttonPressed = (buttonState & 0x8000) != 0;
+            
+            if (buttonPressed)
+            {
+                // Toggle interactive mode
+                _overlayInteractive = !_overlayInteractive;
+                
+                // Find the status indicator ellipse
+                var statusIndicator = this.FindName("StatusIndicator") as System.Windows.Shapes.Ellipse;
+                
+                if (_overlayInteractive)
+                {
+                    // Make overlay interactive
+                    SetClickThrough(false);
+                    
+                    // Visual feedback: Green indicator
+                    if (statusIndicator != null)
+                    {
+                        statusIndicator.Fill = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(0, 255, 0)); // Bright green
+                    }
+                    
+                    // Show cursor
+                    this.Cursor = System.Windows.Input.Cursors.Arrow;
+                    
+                    DebugLogger.Log("🟢 Overlay ACTIVATED - interactive mode ON (green indicator, cursor visible)");
+                }
+                else
+                {
+                    // Make overlay click-through
+                    SetClickThrough(true);
+                    
+                    // Visual feedback: Blue indicator
+                    if (statusIndicator != null)
+                    {
+                        statusIndicator.Fill = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromRgb(47, 157, 255)); // Blue
+                    }
+                    
+                    // Hide cursor over window
+                    this.Cursor = System.Windows.Input.Cursors.None;
+                    
+                    DebugLogger.Log("🔵 Overlay DEACTIVATED - click-through mode ON (blue indicator, cursor hidden)");
+                }
+                
+                // Wait for button release to avoid multiple toggles
+                while ((NativeMethods.GetAsyncKeyState(TOGGLE_MOUSE_BUTTON) & 0x8000) != 0)
+                {
+                    System.Threading.Thread.Sleep(10);
+                }
+            }
+            
+            // If not in interactive mode, always be click-through
+            if (!_overlayInteractive && !_isClickThrough)
+            {
+                SetClickThrough(true);
+            }
+        }
+
+        private void SetClickThrough(bool enabled)
+        {
+            if (_windowHandle == IntPtr.Zero)
+                return;
+
+            _isClickThrough = enabled;
+            var exStyle = NativeMethods.GetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE);
+            
+            if (enabled)
+            {
+                // Make window click-through
+                exStyle |= NativeMethods.WS_EX_TRANSPARENT;
+                DebugLogger.Log("Window set to click-through");
+            }
+            else
+            {
+                // Remove click-through
+                exStyle &= ~NativeMethods.WS_EX_TRANSPARENT;
+                DebugLogger.Log("Window set to normal (not click-through)");
+            }
+            
+            NativeMethods.SetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE, exStyle);
         }
 
         private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)

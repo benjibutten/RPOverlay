@@ -7,8 +7,8 @@ internal static class DebugLogger
 {
     private static readonly string LogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "PathOverlay",
-        "debug.log");
+        "RPOverlay",
+        "DebugOutput.log");
 
     static DebugLogger()
     {

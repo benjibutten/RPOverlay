@@ -26,11 +26,32 @@ namespace RPOverlay.WPF.Interop
         public const int WS_EX_TOOLWINDOW = 0x00000080;
         public const int WS_EX_TOPMOST = 0x00000008;
         public const int WS_EX_NOACTIVATE = 0x08000000;
+        public const int WS_EX_TRANSPARENT = 0x00000020; // Click-through window
+
+        // Window messages
+        public const int WM_CHAR = 0x0102;
+        public const int WM_KEYDOWN = 0x0100;
+        public const int WM_KEYUP = 0x0101;
 
         // Input constants
         public const uint INPUT_KEYBOARD = 1;
         public const uint KEYEVENTF_UNICODE = 0x0004;
         public const uint KEYEVENTF_KEYUP = 0x0002;
+        public const uint KEYEVENTF_SCANCODE = 0x0008;
+        
+        // Virtual key codes
+        public const byte VK_T = 0x54;
+        public const byte VK_CONTROL = 0x11;
+        public const byte VK_V = 0x56;
+        
+        // Mouse button virtual key codes
+        public const int VK_XBUTTON1 = 0x05; // Mouse side button 4
+        public const int VK_XBUTTON2 = 0x06; // Mouse side button 5
+        public const int VK_MBUTTON = 0x04;  // Middle mouse button
+        
+        // ShowWindow constants
+        public const int SW_RESTORE = 9;
+        public const int SW_SHOW = 5;
 
         [DllImport("user32", SetLastError = true)]
         public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -43,6 +64,21 @@ namespace RPOverlay.WPF.Interop
 
         [DllImport("user32")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
+        
+        [DllImport("user32")]
+        public static extern bool BringWindowToTop(IntPtr hWnd);
+        
+        [DllImport("user32")]
+        public static extern bool AllowSetForegroundWindow(uint dwProcessId);
+        
+        [DllImport("user32")]
+        public static extern IntPtr SetFocus(IntPtr hWnd);
+        
+        [DllImport("user32")]
+        public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+        
+        [DllImport("kernel32")]
+        public static extern uint GetCurrentThreadId();
 
         [DllImport("user32")]
         public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -83,6 +119,32 @@ namespace RPOverlay.WPF.Interop
 
         [DllImport("user32", SetLastError = true)]
         public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        [DllImport("user32", CharSet = CharSet.Auto)]
+        public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32", CharSet = CharSet.Auto)]
+        public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string? lpszClass, string? lpszWindow);
+
+        [DllImport("user32")]
+        public static extern short GetAsyncKeyState(int vKey);
+
+        [DllImport("user32")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetCursorPos(out POINT lpPoint);
+        
+        [DllImport("user32")]
+        public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        // Virtual key code for right mouse button
+        public const int VK_RBUTTON = 0x02;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct INPUT
