@@ -804,6 +804,14 @@ namespace RPOverlay.WPF
             }
         }
         
+        private void CloseChat_Click(object sender, RoutedEventArgs e)
+        {
+            // Close chat interface
+            ChatInterface.Visibility = Visibility.Collapsed;
+            ChatToggleButton.IsChecked = false;
+            _isChatVisible = false;
+        }
+        
         private void ChatInput_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key == Key.Enter && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
@@ -944,11 +952,17 @@ namespace RPOverlay.WPF
 
             var tab = new TabItem
             {
-                Header = tabName
+                Header = tabName,
+                VerticalContentAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch
             };
 
             // Create a Grid to hold the TextBox and ensure it fills all space
-            var grid = new Grid();
+            var grid = new Grid
+            {
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
+            };
             
             var textBox = new System.Windows.Controls.TextBox
             {
