@@ -45,6 +45,7 @@ namespace RPOverlay.WPF.Interop
         public const byte VK_V = 0x56;
         
         // Mouse button virtual key codes
+        public const int VK_LBUTTON = 0x01;  // Left mouse button
         public const int VK_XBUTTON1 = 0x05; // Mouse side button 4
         public const int VK_XBUTTON2 = 0x06; // Mouse side button 5
         public const int VK_MBUTTON = 0x04;  // Middle mouse button

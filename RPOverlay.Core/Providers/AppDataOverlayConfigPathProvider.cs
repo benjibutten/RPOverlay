@@ -9,6 +9,6 @@ public sealed class AppDataOverlayConfigPathProvider : IOverlayConfigPathProvide
     public string GetConfigFilePath()
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        return Path.Combine(appData, "PathOverlay", "presets.json");
+        return Path.Combine(appData, "RPOverlay", "presets.json");
     }
 }

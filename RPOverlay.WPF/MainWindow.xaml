@@ -29,7 +29,6 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 
@@ -62,7 +61,7 @@
                                            FontWeight="SemiBold"
                                            Foreground="White"
                                            FontSize="18" />
-                                <TextBlock Text="Sjukhus-overlay (Dra för att flytta)"
+                                <TextBlock Text="Rollspels overlay"
                                            Margin="0,2,0,0"
                                            Foreground="#FFD0D0D0"
                                            FontSize="10" />
@@ -136,19 +135,8 @@
                     </Grid>
                 </Border>
                 
-                <!-- Hotkey hint -->
-                <Border Grid.Row="1"
-                        Background="#33000000"
-                        Padding="8"
-                        CornerRadius="6"
-                        Margin="0,0,0,8">
-                    <TextBlock Text="{Binding HotkeyHint, StringFormat=Toggle: {0}}"
-                               Foreground="#FFB0B0B0"
-                               FontSize="12" />
-                </Border>
-                
                 <!-- Buttons -->
-                <ScrollViewer Grid.Row="2"
+                <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Hidden"
                               MaxHeight="200">
                     <ItemsControl ItemsSource="{Binding Buttons}">
@@ -170,7 +158,7 @@
                                             Tag="{Binding}"
                                             Click="PresetButton_Click"
                                             HorizontalContentAlignment="Left"
-                                            FontSize="14"
+                                            FontSize="16"
                                             Padding="12,10"
                                             Background="#FF2F9DFF"
                                             Foreground="White"
@@ -198,7 +186,7 @@
                 </ScrollViewer>
                 
                 <!-- Notes section with tabs -->
-                <Grid Grid.Row="3" Margin="0,12,0,0">
+                <Grid Grid.Row="2" Margin="0,12,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -222,15 +210,39 @@
                                                     CornerRadius="4,4,0,0"
                                                     Padding="8,4"
                                                     Margin="0,0,4,0">
-                                                <ContentPresenter ContentSource="Header"
-                                                                  VerticalAlignment="Center"
-                                                                  HorizontalAlignment="Center">
-                                                    <ContentPresenter.Resources>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="FontSize" Value="11"/>
-                                                        </Style>
-                                                    </ContentPresenter.Resources>
-                                                </ContentPresenter>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    
+                                                    <ContentPresenter Grid.Column="0"
+                                                                      ContentSource="Header"
+                                                                      VerticalAlignment="Center"
+                                                                      HorizontalAlignment="Center"
+                                                                      Margin="0,0,8,0">
+                                                        <ContentPresenter.Resources>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontSize" Value="11"/>
+                                                            </Style>
+                                                        </ContentPresenter.Resources>
+                                                    </ContentPresenter>
+                                                    
+                                                    <Button Grid.Column="1"
+                                                            Content="✕"
+                                                            Click="CloseTab_Click"
+                                                            Tag="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                                                            Width="14"
+                                                            Height="14"
+                                                            FontSize="8"
+                                                            Background="Transparent"
+                                                            Foreground="#FFB0B0B0"
+                                                            BorderThickness="0"
+                                                            Cursor="Hand"
+                                                            VerticalAlignment="Center"
+                                                            Padding="0"
+                                                            ToolTip="Stäng flik"/>
+                                                </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
@@ -299,14 +311,11 @@
                                DragDelta="ResizeThumb_DragDelta">
                             <Thumb.Template>
                                 <ControlTemplate>
-                                    <Grid Background="#22000000">
-                                        <!-- Grip dots istället för linjer - modernare look -->
-                                        <Ellipse Width="3" Height="3" Fill="#FF2F9DFF" Canvas.Left="14" Canvas.Top="14"/>
-                                        <Ellipse Width="3" Height="3" Fill="#FF2F9DFF" Canvas.Left="10" Canvas.Top="14"/>
-                                        <Ellipse Width="3" Height="3" Fill="#FF2F9DFF" Canvas.Left="14" Canvas.Top="10"/>
-                                        <Ellipse Width="3" Height="3" Fill="#FF2F9DFF" Canvas.Left="6" Canvas.Top="14"/>
-                                        <Ellipse Width="3" Height="3" Fill="#FF2F9DFF" Canvas.Left="10" Canvas.Top="10"/>
-                                        <Ellipse Width="3" Height="3" Fill="#FF2F9DFF" Canvas.Left="14" Canvas.Top="6"/>
+                                    <Grid Background="Transparent">
+                                        <!-- Classic grip lines -->
+                                        <Path Data="M 16,4 L 16,16 M 12,8 L 12,16 M 8,12 L 8,16"
+                                              Stroke="#FF2F9DFF"
+                                              StrokeThickness="2"/>
                                     </Grid>
                                 </ControlTemplate>
                             </Thumb.Template>

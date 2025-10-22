@@ -50,6 +50,7 @@ namespace RPOverlay.WPF
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private readonly OverlayConfigService _configService;
+        private readonly UserSettingsService _userSettingsService;
         private readonly ObservableCollection<OverlayButton> _buttons = new();
         private HwndSource? _hwndSource;
         private IntPtr _windowHandle;
@@ -64,11 +65,11 @@ namespace RPOverlay.WPF
         private readonly string _notesDirectory;
         private readonly Dictionary<string, NoteTab> _noteTabs = new();
         private static bool _debugMode = false;
-        private double _noteFontSize = 12.0; // Default font size
-        private bool _isClickThrough = true; // Start in click-through mode
-        private bool _overlayInteractive = false; // Track if overlay is interactive
+        private double _noteFontSize = 16.0; // Default font size (increased from 12.0)
+        private bool _isClickThrough = false; // Start in interactive mode (not click-through)
+        private bool _overlayInteractive = true; // Track if overlay is interactive - start interactive
         private readonly DispatcherTimer _mouseCheckTimer;
-        private const int TOGGLE_MOUSE_BUTTON = NativeMethods.VK_XBUTTON2; // Side mouse button 5 (forward)
+        private int _interactivityToggleVK = NativeMethods.VK_XBUTTON2; // Virtual key code for interactivity toggle
 
         public MainWindow()
         {
@@ -87,9 +88,14 @@ namespace RPOverlay.WPF
                     DebugLogger.Log("DEBUG MODE ENABLED - Will use Notepad instead of FiveM");
                 }
 
-                DebugLogger.Log("MainWindow constructor: Creating config service...");
-                _configService = new OverlayConfigService(new AppDataOverlayConfigPathProvider());
+                DebugLogger.Log("MainWindow constructor: Creating services...");
+                var pathProvider = new AppDataOverlayConfigPathProvider();
+                _configService = new OverlayConfigService(pathProvider);
+                _userSettingsService = new UserSettingsService(pathProvider);
                 _configService.ConfigReloaded += OnConfigReloaded;
+
+                // Load user settings
+                LoadUserSettings();
 
                 // Initialize notes directory
                 _notesDirectory = Path.Combine(
@@ -146,6 +152,129 @@ namespace RPOverlay.WPF
             }
         }
 
+        private void LoadUserSettings()
+        {
+            try
+            {
+                var settings = _userSettingsService.Load();
+                
+                // Apply opacity
+                this.Opacity = settings.Opacity;
+                
+                // Apply font size
+                _noteFontSize = settings.FontSize;
+                
+                // Apply hotkey
+                if (!string.IsNullOrWhiteSpace(settings.ToggleHotkey))
+                {
+                    if (HotkeyParser.TryParse(settings.ToggleHotkey, out var definition) &&
+                        definition != null &&
+                        TryConvertKey(definition.Key, out var key))
+                    {
+                        _currentModifiers = ToModifierKeys(definition.Modifiers);
+                        _currentKey = key;
+                        HotkeyHint = BuildHotkeyHint(definition);
+                    }
+                }
+                
+                // Apply interactivity toggle
+                _interactivityToggleVK = ConvertInteractivityToggleToVK(settings.InteractivityToggle);
+                
+                // Apply window size
+                if (settings.WindowWidth > 0) Width = settings.WindowWidth;
+                if (settings.WindowHeight > 0) Height = settings.WindowHeight;
+                
+                // Apply window position if saved, otherwise use default positioning
+                if (settings.WindowLeft >= 0 && settings.WindowTop >= 0)
+                {
+                    Left = settings.WindowLeft;
+                    Top = settings.WindowTop;
+                    
+                    // Validate that window is within screen bounds
+                    var workArea = SystemParameters.WorkArea;
+                    if (Left < workArea.Left || Left > workArea.Right - Width)
+                    {
+                        Left = workArea.Right - Width - 24;
+                    }
+                    if (Top < workArea.Top || Top > workArea.Bottom - Height)
+                    {
+                        Top = workArea.Top + 24;
+                    }
+                }
+                
+                DebugLogger.Log($"Loaded user settings: Opacity={settings.Opacity}, FontSize={settings.FontSize}, Hotkey={settings.ToggleHotkey}, InteractivityToggle={settings.InteractivityToggle}, Position=({settings.WindowLeft},{settings.WindowTop})");
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+            }
+        }
+
+        private int ConvertInteractivityToggleToVK(string toggle)
+        {
+            // Mouse buttons
+            if (toggle == "XButton1") return NativeMethods.VK_XBUTTON1;
+            if (toggle == "XButton2") return NativeMethods.VK_XBUTTON2;
+            if (toggle == "LeftClick") return NativeMethods.VK_LBUTTON;
+            if (toggle == "RightClick") return NativeMethods.VK_RBUTTON;
+            if (toggle == "MiddleClick") return NativeMethods.VK_MBUTTON;
+            
+            // Keyboard keys - try to convert using WPF Key enum
+            try
+            {
+                // Remove modifiers if present (e.g., "Ctrl+F9" -> "F9")
+                var parts = toggle.Split('+');
+                var keyPart = parts[parts.Length - 1];
+                
+                if (Enum.TryParse<Key>(keyPart, true, out var key))
+                {
+                    return KeyInterop.VirtualKeyFromKey(key);
+                }
+            }
+            catch
+            {
+                // Fall through to default
+            }
+            
+            // Default to XButton2
+            return NativeMethods.VK_XBUTTON2;
+        }
+
+        private void SaveUserSettings()
+        {
+            try
+            {
+                var settings = _userSettingsService.Current;
+                settings.FontSize = _noteFontSize;
+                settings.Opacity = this.Opacity;
+                settings.WindowWidth = Width;
+                settings.WindowHeight = Height;
+                settings.WindowLeft = Left;
+                settings.WindowTop = Top;
+                
+                // Save tab states
+                var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
+                if (tabControl != null)
+                {
+                    settings.OpenTabs = new List<string>();
+                    foreach (TabItem tab in tabControl.Items)
+                    {
+                        if (tab.Header is string tabName)
+                        {
+                            settings.OpenTabs.Add(tabName);
+                        }
+                    }
+                }
+                
+                _userSettingsService.Save(settings);
+                DebugLogger.Log("Saved user settings");
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+            }
+        }
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             DebugLogger.Log("MainWindow.OnLoaded called");
@@ -156,18 +285,23 @@ namespace RPOverlay.WPF
             DebugLogger.Log($"Window handle: {_windowHandle}");
 
             ApplyWindowStyles();
-            LoadWindowSettings(); // Load saved position and size
             RegisterHotkey();
             ShowOverlay(); // Start with overlay visible
-            SetClickThrough(true); // Start in click-through mode
+            SetClickThrough(false); // Start in interactive mode (NOT click-through)
             
-            // Set initial visual state - inactive/click-through
-            this.Cursor = System.Windows.Input.Cursors.None; // Hide cursor initially
+            // Set initial visual state - active/interactive with green indicator
+            this.Cursor = System.Windows.Input.Cursors.Arrow; // Show cursor
+            
+            var statusIndicator = this.FindName("StatusIndicator") as System.Windows.Shapes.Ellipse;
+            if (statusIndicator != null)
+            {
+                statusIndicator.Fill = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0, 255, 0)); // Green
+            }
             
             _autoSaveTimer.Start(); // Start auto-save timer
             _mouseCheckTimer.Start(); // Start mouse check timer
-            Dispatcher.BeginInvoke(new Action(PositionWindow), DispatcherPriority.Background);
-            DebugLogger.Log("OnLoaded: Complete - Overlay starts in click-through mode (cursor hidden), press Mouse Button 5 to toggle");
+            DebugLogger.Log("OnLoaded: Complete - Overlay starts in INTERACTIVE mode (green indicator, cursor visible), press Mouse Button 5 to toggle");
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -468,6 +602,8 @@ namespace RPOverlay.WPF
             if (e.ClickCount == 1)
             {
                 DragMove();
+                // Save position after drag
+                SaveUserSettings();
             }
         }
 
@@ -537,6 +673,56 @@ namespace RPOverlay.WPF
             } while (_noteTabs.ContainsKey(tabName));
 
             AddNoteTab(tabName, string.Empty, isNewTab: true, isProtectedTab: false);
+            SaveUserSettings(); // Save updated tab list
+        }
+
+        private void CloseTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.Button button || button.Tag is not TabItem tabItem)
+            {
+                return;
+            }
+
+            var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
+            if (tabControl == null) return;
+
+            // Don't allow closing the last tab
+            if (tabControl.Items.Count <= 1)
+            {
+                System.Windows.MessageBox.Show(
+                    "Du måste ha minst en flik öppen.",
+                    "Kan inte stänga flik",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var tabName = tabItem.Header?.ToString();
+            if (string.IsNullOrEmpty(tabName)) return;
+
+            var result = System.Windows.MessageBox.Show(
+                $"Är du säker på att du vill stänga fliken '{tabName}'? Innehållet kommer att sparas.",
+                "Bekräfta stängning",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Save content before closing
+                if (_noteTabs.TryGetValue(tabName, out var noteTab))
+                {
+                    SaveNoteContent(noteTab);
+                }
+
+                // Remove from tabs
+                tabControl.Items.Remove(tabItem);
+                _noteTabs.Remove(tabName);
+                
+                // Save updated tab list
+                SaveUserSettings();
+                
+                DebugLogger.Log($"Closed tab: {tabName}");
+            }
         }
 
         private void AddNoteTab(string tabName, string initialContent = "", bool isNewTab = false, bool isProtectedTab = false)
@@ -1227,6 +1413,7 @@ namespace RPOverlay.WPF
             _mouseCheckTimer.Stop();
             SaveAllNotes();
             SaveWindowSettings(); // Save window position and size
+            SaveUserSettings(); // Save user settings including tab states
 
             if (_windowHandle != IntPtr.Zero)
             {
@@ -1258,12 +1445,26 @@ namespace RPOverlay.WPF
                 return;
             }
 
-            // Create default tabs (these won't change name based on first line)
-            var defaultTabs = new[] { "Noteringar", "Patienter" };
-            
-            foreach (var tabName in defaultTabs)
+            // Load tabs from user settings if available
+            var userSettings = _userSettingsService.Current;
+            if (userSettings.OpenTabs != null && userSettings.OpenTabs.Count > 0)
             {
-                AddNoteTab(tabName, string.Empty, false, isProtectedTab: true);
+                DebugLogger.Log($"Restoring {userSettings.OpenTabs.Count} tabs from settings");
+                foreach (var tabName in userSettings.OpenTabs)
+                {
+                    AddNoteTab(tabName, string.Empty, false, isProtectedTab: false);
+                }
+            }
+            else
+            {
+                // Create default tabs if no saved tabs exist
+                DebugLogger.Log("No saved tabs found, creating default tabs");
+                var defaultTabs = new[] { "Anteckningar" };
+                
+                foreach (var tabName in defaultTabs)
+                {
+                    AddNoteTab(tabName, string.Empty, false, isProtectedTab: false);
+                }
             }
 
             if (tabControl.Items.Count > 0)
@@ -1318,7 +1519,7 @@ namespace RPOverlay.WPF
         private void MouseCheckTimer_Tick(object? sender, EventArgs e)
         {
             // Check if toggle button is pressed
-            short buttonState = NativeMethods.GetAsyncKeyState(TOGGLE_MOUSE_BUTTON);
+            short buttonState = NativeMethods.GetAsyncKeyState(_interactivityToggleVK);
             bool buttonPressed = (buttonState & 0x8000) != 0;
             
             if (buttonPressed)
@@ -1365,7 +1566,7 @@ namespace RPOverlay.WPF
                 }
                 
                 // Wait for button release to avoid multiple toggles
-                while ((NativeMethods.GetAsyncKeyState(TOGGLE_MOUSE_BUTTON) & 0x8000) != 0)
+                while ((NativeMethods.GetAsyncKeyState(_interactivityToggleVK) & 0x8000) != 0)
                 {
                     System.Threading.Thread.Sleep(10);
                 }

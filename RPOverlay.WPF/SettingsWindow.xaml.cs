@@ -4,6 +4,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using RPOverlay.Core.Models;
 using RPOverlay.Core.Services;
 using RPOverlay.Core.Providers;
@@ -18,14 +20,20 @@ namespace RPOverlay.WPF
     public partial class SettingsWindow : Window, INotifyPropertyChanged
     {
         private readonly OverlayConfigService _configService;
+        private readonly UserSettingsService _userSettingsService;
         private ObservableCollection<OverlayButton> _commands;
+        private double _windowOpacity;
+        private string _toggleHotkey = "F9";
+        private string _interactivityToggle = "XButton2";
 
         public SettingsWindow()
         {
             InitializeComponent();
             DataContext = this;
 
-            _configService = new OverlayConfigService(new AppDataOverlayConfigPathProvider());
+            var pathProvider = new AppDataOverlayConfigPathProvider();
+            _configService = new OverlayConfigService(pathProvider);
+            _userSettingsService = new UserSettingsService(pathProvider);
             
             // Load existing commands
             _commands = new ObservableCollection<OverlayButton>(
@@ -34,6 +42,12 @@ namespace RPOverlay.WPF
                     Label = b.Label, 
                     Text = b.Text 
                 }));
+
+            // Load user settings
+            var userSettings = _userSettingsService.Load();
+            _windowOpacity = userSettings.Opacity;
+            _toggleHotkey = userSettings.ToggleHotkey;
+            _interactivityToggle = userSettings.InteractivityToggle;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -44,6 +58,45 @@ namespace RPOverlay.WPF
             set
             {
                 _commands = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public double WindowOpacity
+        {
+            get => _windowOpacity;
+            set
+            {
+                if (Math.Abs(_windowOpacity - value) < 0.001) return;
+                _windowOpacity = value;
+                OnPropertyChanged();
+                
+                // Apply opacity to MainWindow immediately
+                if (Owner is MainWindow mainWindow)
+                {
+                    mainWindow.Opacity = value;
+                }
+            }
+        }
+
+        public string ToggleHotkey
+        {
+            get => _toggleHotkey;
+            set
+            {
+                if (_toggleHotkey == value) return;
+                _toggleHotkey = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string InteractivityToggle
+        {
+            get => _interactivityToggle;
+            set
+            {
+                if (_interactivityToggle == value) return;
+                _interactivityToggle = value;
                 OnPropertyChanged();
             }
         }
@@ -117,7 +170,7 @@ namespace RPOverlay.WPF
                     return;
                 }
 
-                // Save to config
+                // Save overlay commands to config
                 var config = _configService.Current;
                 
                 // Preserve window settings when saving button configuration
@@ -127,11 +180,12 @@ namespace RPOverlay.WPF
                 
                 _configService.Save(config);
 
-                MessageBox.Show(
-                    "Inställningar sparade!",
-                    "Sparat",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                // Save user settings
+                var userSettings = _userSettingsService.Current;
+                userSettings.Opacity = WindowOpacity;
+                userSettings.ToggleHotkey = ToggleHotkey;
+                userSettings.InteractivityToggle = InteractivityToggle;
+                _userSettingsService.Save(userSettings);
 
                 DialogResult = true;
                 Close();
@@ -150,6 +204,152 @@ namespace RPOverlay.WPF
         {
             DialogResult = false;
             Close();
+        }
+
+        private bool _isCapturingHotkey = false;
+
+        private void HotkeyButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isCapturingHotkey) return;
+            
+            _isCapturingHotkey = true;
+            var button = sender as System.Windows.Controls.Button;
+            
+            if (button != null)
+            {
+                button.Content = "Tryck på en tangent...";
+                button.Focus();
+                
+                // Capture the next key press
+                System.Windows.Input.KeyEventHandler? keyHandler = null;
+                keyHandler = (s, ev) =>
+                {
+                    ev.Handled = true;
+                    
+                    // Build hotkey string
+                    var modifiers = new System.Collections.Generic.List<string>();
+                    
+                    if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+                        modifiers.Add("Ctrl");
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+                        modifiers.Add("Shift");
+                    if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+                        modifiers.Add("Alt");
+                    if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0)
+                        modifiers.Add("Win");
+                    
+                    // Get the key
+                    var key = ev.Key == Key.System ? ev.SystemKey : ev.Key;
+                    
+                    // Skip modifier keys themselves
+                    if (key == Key.LeftCtrl || key == Key.RightCtrl ||
+                        key == Key.LeftShift || key == Key.RightShift ||
+                        key == Key.LeftAlt || key == Key.RightAlt ||
+                        key == Key.LWin || key == Key.RWin)
+                    {
+                        return;
+                    }
+                    
+                    modifiers.Add(key.ToString());
+                    
+                    var hotkeyString = string.Join("+", modifiers);
+                    ToggleHotkey = hotkeyString;
+                    button.Content = hotkeyString;
+                    
+                    // Unsubscribe
+                    button.PreviewKeyDown -= keyHandler;
+                    _isCapturingHotkey = false;
+                };
+                
+                button.PreviewKeyDown += keyHandler;
+            }
+        }
+
+        private bool _isCapturingInteractivity = false;
+
+        private void InteractivityButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isCapturingInteractivity) return;
+            
+            _isCapturingInteractivity = true;
+            var button = sender as System.Windows.Controls.Button;
+            
+            if (button != null)
+            {
+                button.Content = "Tryck på tangent eller musknapp...";
+                button.Focus();
+                
+                // Declare handlers first
+                System.Windows.Input.KeyEventHandler? keyHandler = null;
+                System.Windows.Input.MouseButtonEventHandler? mouseHandler = null;
+                
+                // Capture keyboard
+                keyHandler = (s, ev) =>
+                {
+                    ev.Handled = true;
+                    
+                    var key = ev.Key == Key.System ? ev.SystemKey : ev.Key;
+                    
+                    // Skip modifier keys themselves
+                    if (key == Key.LeftCtrl || key == Key.RightCtrl ||
+                        key == Key.LeftShift || key == Key.RightShift ||
+                        key == Key.LeftAlt || key == Key.RightAlt ||
+                        key == Key.LWin || key == Key.RWin)
+                    {
+                        return;
+                    }
+                    
+                    // Build key string with modifiers
+                    var modifiers = new System.Collections.Generic.List<string>();
+                    
+                    if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+                        modifiers.Add("Ctrl");
+                    if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+                        modifiers.Add("Shift");
+                    if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+                        modifiers.Add("Alt");
+                    if ((Keyboard.Modifiers & ModifierKeys.Windows) != 0)
+                        modifiers.Add("Win");
+                    
+                    modifiers.Add(key.ToString());
+                    
+                    var keyString = string.Join("+", modifiers);
+                    InteractivityToggle = keyString;
+                    button.Content = keyString;
+                    
+                    // Cleanup
+                    button.PreviewKeyDown -= keyHandler;
+                    button.PreviewMouseDown -= mouseHandler;
+                    _isCapturingInteractivity = false;
+                };
+                
+                // Capture mouse buttons
+                mouseHandler = (s, ev) =>
+                {
+                    ev.Handled = true;
+                    
+                    string mouseButtonName = ev.ChangedButton switch
+                    {
+                        MouseButton.Left => "LeftClick",
+                        MouseButton.Right => "RightClick",
+                        MouseButton.Middle => "MiddleClick",
+                        MouseButton.XButton1 => "XButton1",
+                        MouseButton.XButton2 => "XButton2",
+                        _ => "UnknownButton"
+                    };
+                    
+                    InteractivityToggle = mouseButtonName;
+                    button.Content = mouseButtonName;
+                    
+                    // Cleanup
+                    button.PreviewKeyDown -= keyHandler;
+                    button.PreviewMouseDown -= mouseHandler;
+                    _isCapturingInteractivity = false;
+                };
+                
+                button.PreviewKeyDown += keyHandler;
+                button.PreviewMouseDown += mouseHandler;
+            }
         }
 
         private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)

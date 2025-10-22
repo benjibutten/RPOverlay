@@ -109,7 +109,7 @@ namespace RPOverlay.WPF.Services
         private static string BuildConfigPath()
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, "PathOverlay", "presets.json");
+            return Path.Combine(appData, "RPOverlay", "presets.json");
         }
 
         public void Dispose()
