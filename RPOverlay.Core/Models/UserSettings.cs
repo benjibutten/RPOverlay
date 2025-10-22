@@ -13,6 +13,10 @@ public sealed class UserSettings
     public double WindowLeft { get; set; } = -1; // -1 means not set
     public double WindowTop { get; set; } = -1; // -1 means not set
     public List<string> OpenTabs { get; set; } = new();
+    
+    // OpenAI Settings
+    public string OpenAiApiKey { get; set; } = string.Empty;
+    public string SystemPrompt { get; set; } = "Du är en hjälpsam assistent för rollspel.";
 
     public static UserSettings CreateDefault() => new()
     {
@@ -24,6 +28,8 @@ public sealed class UserSettings
         WindowHeight = 600,
         WindowLeft = -1,
         WindowTop = -1,
-        OpenTabs = new List<string> { "Anteckningar" }
+        OpenTabs = new List<string> { "Anteckningar" },
+        OpenAiApiKey = string.Empty,
+        SystemPrompt = "Du är en hjälpsam assistent för rollspel."
     };
 }

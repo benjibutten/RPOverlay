@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,6 +20,7 @@ using RPOverlay.Core.Utilities;
 using RPOverlay.Core.Providers;
 using RPOverlay.WPF.Interop;
 using RPOverlay.WPF.Logging;
+using RPOverlay.Infra.Services;
 
 namespace RPOverlay.WPF
 {
@@ -41,6 +43,34 @@ namespace RPOverlay.WPF
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+    
+    public class ChatMessageViewModel : INotifyPropertyChanged
+    {
+        private string _content = string.Empty;
+        
+        public bool IsUser { get; set; }
+        
+        public string Content
+        {
+            get => _content;
+            set
+            {
+                if (_content == value) return;
+                _content = value;
+                OnPropertyChanged();
+            }
+        }
+        
+        public System.Windows.HorizontalAlignment HorizontalAlignment => IsUser ? System.Windows.HorizontalAlignment.Right : System.Windows.HorizontalAlignment.Left;
+        public double FontSize { get; set; } = 13.0;
+        
+        public event PropertyChangedEventHandler? PropertyChanged;
+        
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -70,6 +100,14 @@ namespace RPOverlay.WPF
         private bool _overlayInteractive = true; // Track if overlay is interactive - start interactive
         private readonly DispatcherTimer _mouseCheckTimer;
         private int _interactivityToggleVK = NativeMethods.VK_XBUTTON2; // Virtual key code for interactivity toggle
+        
+        // Chat-related fields
+        private readonly ChatService _chatService = new();
+        private readonly ObservableCollection<ChatMessageViewModel> _chatMessages = new();
+        private bool _isChatVisible = false;
+        private bool _isSendingMessage = false;
+        private string _chatInputText = string.Empty;
+        private CancellationTokenSource? _chatCancellationTokenSource;
 
         public MainWindow()
         {
@@ -203,10 +241,34 @@ namespace RPOverlay.WPF
                 }
                 
                 DebugLogger.Log($"Loaded user settings: Opacity={settings.Opacity}, FontSize={settings.FontSize}, Hotkey={settings.ToggleHotkey}, InteractivityToggle={settings.InteractivityToggle}, Position=({settings.WindowLeft},{settings.WindowTop})");
+                
+                // Configure ChatService with API key and system prompt
+                InitializeChatService(settings.OpenAiApiKey, settings.SystemPrompt);
             }
             catch (Exception ex)
             {
                 DebugLogger.LogException(ex);
+            }
+        }
+        
+        private void InitializeChatService(string apiKey, string systemPrompt)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                {
+                    _chatService.Configure(apiKey, systemPrompt);
+                    DebugLogger.Log("ChatService configured successfully");
+                }
+                else
+                {
+                    DebugLogger.Log("ChatService not configured - no API key provided");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+                System.Windows.MessageBox.Show($"Fel vid konfiguration av AI-chatt: {ex.Message}", "ChatService Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -632,7 +694,17 @@ namespace RPOverlay.WPF
             {
                 Owner = this
             };
-            settingsWindow.ShowDialog();
+            
+            if (settingsWindow.ShowDialog() == true)
+            {
+                // Reload user settings after they've been saved
+                var settings = _userSettingsService.Load();
+                
+                // Reconfigure ChatService with potentially new API key and system prompt
+                InitializeChatService(settings.OpenAiApiKey, settings.SystemPrompt);
+                
+                DebugLogger.Log("Settings saved and ChatService reconfigured");
+            }
         }
 
         private void ZoomIn_Click(object sender, RoutedEventArgs e)
@@ -654,10 +726,21 @@ namespace RPOverlay.WPF
 
             foreach (TabItem tab in tabControl.Items)
             {
-                if (tab.Content is System.Windows.Controls.TextBox textBox)
+                // Check if content is a Grid (new structure) or TextBox (old structure)
+                if (tab.Content is Grid grid && grid.Children.Count > 0 && grid.Children[0] is System.Windows.Controls.TextBox textBox)
                 {
                     textBox.FontSize = _noteFontSize;
                 }
+                else if (tab.Content is System.Windows.Controls.TextBox directTextBox)
+                {
+                    directTextBox.FontSize = _noteFontSize;
+                }
+            }
+            
+            // Update chat messages font size as well
+            foreach (var message in _chatMessages)
+            {
+                message.FontSize = _noteFontSize;
             }
         }
 
@@ -674,6 +757,135 @@ namespace RPOverlay.WPF
 
             AddNoteTab(tabName, string.Empty, isNewTab: true, isProtectedTab: false);
             SaveUserSettings(); // Save updated tab list
+        }
+        
+        private void ChatToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _isChatVisible = ChatToggleButton.IsChecked == true;
+            
+            if (_isChatVisible)
+            {
+                // Show chat interface
+                ChatInterface.Visibility = Visibility.Visible;
+                
+                // Initialize chat messages if first time
+                if (ChatMessages.ItemsSource == null)
+                {
+                    ChatMessages.ItemsSource = _chatMessages;
+                    
+                    // Add welcome message if configured
+                    if (_chatService.IsConfigured)
+                    {
+                        _chatMessages.Add(new ChatMessageViewModel
+                        {
+                            IsUser = false,
+                            Content = "Hej! Hur kan jag hjälpa dig idag?",
+                            FontSize = _noteFontSize
+                        });
+                    }
+                    else
+                    {
+                        _chatMessages.Add(new ChatMessageViewModel
+                        {
+                            IsUser = false,
+                            Content = "⚠️ OpenAI API-nyckel saknas. Lägg till den i inställningar för att börja chatta.",
+                            FontSize = _noteFontSize
+                        });
+                    }
+                }
+                
+                // Focus input box
+                ChatInputBox.Focus();
+            }
+            else
+            {
+                // Hide chat
+                ChatInterface.Visibility = Visibility.Collapsed;
+            }
+        }
+        
+        private void ChatInput_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                e.Handled = true;
+                SendChat_Click(sender, new RoutedEventArgs());
+            }
+        }
+        
+        private async void SendChat_Click(object sender, RoutedEventArgs e)
+        {
+            if (!CanSendMessage) return;
+            
+            var userMessage = ChatInputText.Trim();
+            if (string.IsNullOrWhiteSpace(userMessage)) return;
+            
+            // Clear input
+            ChatInputText = string.Empty;
+            
+            // Add user message
+            var userMsgViewModel = new ChatMessageViewModel
+            {
+                IsUser = true,
+                Content = userMessage,
+                FontSize = _noteFontSize
+            };
+            _chatMessages.Add(userMsgViewModel);
+            
+            // Scroll to bottom
+            ScrollChatToBottom();
+            
+            // Disable input while sending
+            _isSendingMessage = true;
+            OnPropertyChanged(nameof(CanSendMessage));
+            
+            // Create assistant message placeholder
+            var assistantMsgViewModel = new ChatMessageViewModel
+            {
+                IsUser = false,
+                Content = "",
+                FontSize = _noteFontSize
+            };
+            _chatMessages.Add(assistantMsgViewModel);
+            
+            try
+            {
+                // Cancel any existing operation
+                _chatCancellationTokenSource?.Cancel();
+                _chatCancellationTokenSource = new CancellationTokenSource();
+                
+                // Stream response
+                await foreach (var chunk in _chatService.SendMessageStreamAsync(userMessage, _chatCancellationTokenSource.Token))
+                {
+                    assistantMsgViewModel.Content += chunk;
+                    
+                    // Scroll to bottom periodically
+                    ScrollChatToBottom();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                assistantMsgViewModel.Content = "[Meddelande avbrutet]";
+            }
+            catch (Exception ex)
+            {
+                assistantMsgViewModel.Content = $"❌ Fel: {ex.Message}";
+                DebugLogger.LogException(ex);
+            }
+            finally
+            {
+                _isSendingMessage = false;
+                OnPropertyChanged(nameof(CanSendMessage));
+                ScrollChatToBottom();
+            }
+        }
+        
+        private void ScrollChatToBottom()
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                ChatScrollViewer.ScrollToBottom();
+            }), DispatcherPriority.Background);
         }
 
         private void CloseTab_Click(object sender, RoutedEventArgs e)
@@ -735,6 +947,9 @@ namespace RPOverlay.WPF
                 Header = tabName
             };
 
+            // Create a Grid to hold the TextBox and ensure it fills all space
+            var grid = new Grid();
+            
             var textBox = new System.Windows.Controls.TextBox
             {
                 Name = "NoteTextBox",
@@ -748,8 +963,12 @@ namespace RPOverlay.WPF
                 BorderThickness = new Thickness(1),
                 Padding = new Thickness(8),
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                FontSize = _noteFontSize
+                FontSize = _noteFontSize,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
             };
+
+            grid.Children.Add(textBox);
 
             // Auto-focus on mouse enter to avoid clicking in FiveM
             textBox.MouseEnter += (s, e) =>
@@ -818,7 +1037,7 @@ namespace RPOverlay.WPF
                 }
             };
 
-            tab.Content = textBox;
+            tab.Content = grid;
             tabControl.Items.Add(tab);
             tabControl.SelectedItem = tab;
             
@@ -1428,7 +1647,26 @@ namespace RPOverlay.WPF
 
             _configService.ConfigReloaded -= OnConfigReloaded;
             _configService.Dispose();
+            
+            // Cancel any ongoing chat operations
+            _chatCancellationTokenSource?.Cancel();
+            _chatCancellationTokenSource?.Dispose();
         }
+        
+        // Chat Properties
+        public string ChatInputText
+        {
+            get => _chatInputText;
+            set
+            {
+                if (_chatInputText == value) return;
+                _chatInputText = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanSendMessage));
+            }
+        }
+        
+        public bool CanSendMessage => !_isSendingMessage && !string.IsNullOrWhiteSpace(_chatInputText) && _chatService.IsConfigured;
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {

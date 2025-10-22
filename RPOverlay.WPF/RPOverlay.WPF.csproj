@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RPOverlay.Core\RPOverlay.Core.csproj" />
+    <ProjectReference Include="..\RPOverlay.Infra\RPOverlay.Infra.csproj" />
   </ItemGroup>
 
 </Project>

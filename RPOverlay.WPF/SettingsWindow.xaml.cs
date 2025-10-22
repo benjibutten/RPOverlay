@@ -25,6 +25,7 @@ namespace RPOverlay.WPF
         private double _windowOpacity;
         private string _toggleHotkey = "F9";
         private string _interactivityToggle = "XButton2";
+        private string _systemPrompt = "Du är en hjälpsam assistent för rollspel.";
 
         public SettingsWindow()
         {
@@ -48,6 +49,13 @@ namespace RPOverlay.WPF
             _windowOpacity = userSettings.Opacity;
             _toggleHotkey = userSettings.ToggleHotkey;
             _interactivityToggle = userSettings.InteractivityToggle;
+            _systemPrompt = userSettings.SystemPrompt;
+            
+            // Set API key in PasswordBox (PasswordBox.Password can't be bound)
+            if (!string.IsNullOrWhiteSpace(userSettings.OpenAiApiKey))
+            {
+                ApiKeyPasswordBox.Password = userSettings.OpenAiApiKey;
+            }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -97,6 +105,17 @@ namespace RPOverlay.WPF
             {
                 if (_interactivityToggle == value) return;
                 _interactivityToggle = value;
+                OnPropertyChanged();
+            }
+        }
+        
+        public string SystemPrompt
+        {
+            get => _systemPrompt;
+            set
+            {
+                if (_systemPrompt == value) return;
+                _systemPrompt = value;
                 OnPropertyChanged();
             }
         }
@@ -181,10 +200,12 @@ namespace RPOverlay.WPF
                 _configService.Save(config);
 
                 // Save user settings
-                var userSettings = _userSettingsService.Current;
+                var userSettings = _userSettingsService.Load(); // Load fresh to get all current values
                 userSettings.Opacity = WindowOpacity;
                 userSettings.ToggleHotkey = ToggleHotkey;
                 userSettings.InteractivityToggle = InteractivityToggle;
+                userSettings.OpenAiApiKey = ApiKeyPasswordBox.Password;
+                userSettings.SystemPrompt = SystemPrompt;
                 _userSettingsService.Save(userSettings);
 
                 DialogResult = true;

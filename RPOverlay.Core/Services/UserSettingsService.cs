@@ -84,6 +84,12 @@ public sealed class UserSettingsService
                         case "ToggleMouseButton": // Legacy compatibility
                             settings.InteractivityToggle = value;
                             break;
+                        case "OpenAiApiKey":
+                            settings.OpenAiApiKey = value;
+                            break;
+                        case "SystemPrompt":
+                            settings.SystemPrompt = value;
+                            break;
                     }
                 }
                 else if (currentSection == "Window")
@@ -145,6 +151,8 @@ public sealed class UserSettingsService
             sb.AppendLine($"Opacity={settings.Opacity.ToString(CultureInfo.InvariantCulture)}");
             sb.AppendLine($"ToggleHotkey={settings.ToggleHotkey}");
             sb.AppendLine($"InteractivityToggle={settings.InteractivityToggle}");
+            sb.AppendLine($"OpenAiApiKey={settings.OpenAiApiKey}");
+            sb.AppendLine($"SystemPrompt={settings.SystemPrompt}");
             sb.AppendLine();
             
             sb.AppendLine("[Window]");
