@@ -435,8 +435,7 @@
                                             <Border Margin="4,2"
                                                     Padding="10,8"
                                                     CornerRadius="8"
-                                                    MaxWidth="280"
-                                                    HorizontalAlignment="{Binding HorizontalAlignment}">
+                                                    HorizontalAlignment="Stretch">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Background" Value="#FF2F9DFF"/>
@@ -489,17 +488,41 @@
                             
                                 <Button x:Name="SendButton"
                                         Grid.Column="1"
-                                        Content="➤"
                                         Click="SendChat_Click"
                                         Width="40"
-                                        Background="#FF2F9DFF"
-                                        Foreground="White"
-                                        BorderThickness="0"
-                                        FontSize="16"
+                                        Height="40"
                                         Margin="4,0,0,0"
                                         Cursor="Hand"
                                         IsEnabled="{Binding CanSendMessage}"
-                                        ToolTip="Skicka meddelande (Enter)"/>
+                                        ToolTip="Skicka meddelande (Enter)">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="SendButtonBorder"
+                                                    Background="#FF2F9DFF"
+                                                    CornerRadius="4"
+                                                    BorderBrush="#FF1E9FFF"
+                                                    BorderThickness="1">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF1E9FFF"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF0D8FFF"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF555555"/>
+                                                    <Setter Property="Foreground" Value="#FF888888"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock Text="➤" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                             </Grid>
                         </Border>
                     </Grid>
