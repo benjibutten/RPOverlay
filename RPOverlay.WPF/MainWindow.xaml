@@ -527,32 +527,33 @@
                         </Border>
                     </Grid>
                     
-                    <!-- Resize grip - higher z-index to ensure it's clickable -->
-                    <Canvas Grid.Row="1"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Bottom"
-                            Width="20"
-                            Height="20"
-                            Margin="2,0,0,2"
-                            Background="Transparent"
-                            Panel.ZIndex="2000">
-                        <Thumb x:Name="ResizeThumb"
-                               Width="20"
-                               Height="20"
-                               Cursor="SizeNESW"
-                               DragDelta="ResizeThumb_DragDelta">
-                            <Thumb.Template>
-                                <ControlTemplate>
-                                    <Grid Background="Transparent">
-                                        <!-- Classic grip lines -->
-                                        <Path Data="M 16,4 L 16,16 M 12,8 L 12,16 M 8,12 L 8,16"
-                                              Stroke="#FF2F9DFF"
-                                              StrokeThickness="2"/>
-                                    </Grid>
-                                </ControlTemplate>
-                            </Thumb.Template>
-                        </Thumb>
-                    </Canvas>
+                    <!-- Left Resize grip - bottom-left corner -->
+                    <Thumb Grid.Row="1"
+                           x:Name="ResizeThumbLeft"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Bottom"
+                           Width="20"
+                           Height="20"
+                           Margin="-4,0,0,-4"
+                           Cursor="SizeNESW"
+                           DragDelta="ResizeThumbLeft_DragDelta"
+                           Panel.ZIndex="2000"
+                           Background="Transparent"
+                           Opacity="0"/>
+
+                    <!-- Right Resize grip - bottom-right corner -->
+                    <Thumb Grid.Row="1"
+                           x:Name="ResizeThumbRight"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Bottom"
+                           Width="20"
+                           Height="20"
+                           Margin="0,0,-4,-4"
+                           Cursor="SizeNWSE"
+                           DragDelta="ResizeThumbRight_DragDelta"
+                           Panel.ZIndex="2000"
+                           Background="Transparent"
+                           Opacity="0"/>
                 </Grid>
             </Grid>
         </Border>

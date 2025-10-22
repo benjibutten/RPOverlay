@@ -1855,7 +1855,7 @@ namespace RPOverlay.WPF
             NativeMethods.SetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE, exStyle);
         }
 
-        private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        private void ResizeThumbLeft_DragDelta(object sender, DragDeltaEventArgs e)
         {
             // Resize from bottom-left corner (inverted horizontal)
             double newWidth = Width - e.HorizontalChange;
@@ -1867,6 +1867,24 @@ namespace RPOverlay.WPF
                 Width = newWidth;
                 // Adjust position to keep the right edge fixed
                 Left += e.HorizontalChange;
+            }
+
+            if (newHeight >= MinHeight)
+            {
+                Height = newHeight;
+            }
+        }
+
+        private void ResizeThumbRight_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            // Resize from bottom-right corner
+            double newWidth = Width + e.HorizontalChange;
+            double newHeight = Height + e.VerticalChange;
+
+            // Apply minimum constraints
+            if (newWidth >= MinWidth)
+            {
+                Width = newWidth;
             }
 
             if (newHeight >= MinHeight)
