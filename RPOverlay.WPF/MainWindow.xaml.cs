@@ -710,6 +710,18 @@ namespace RPOverlay.WPF
 
             try
             {
+                // Temporarily disable our window from stealing focus
+                if (_windowHandle != IntPtr.Zero)
+                {
+                    var ourExStyle = NativeMethods.GetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE);
+                    if ((ourExStyle & NativeMethods.WS_EX_NOACTIVATE) == 0)
+                    {
+                        ourExStyle |= NativeMethods.WS_EX_NOACTIVATE;
+                        NativeMethods.SetWindowLong(_windowHandle, NativeMethods.GWL_EXSTYLE, ourExStyle);
+                        DebugLogger.Log("Ensured NOACTIVATE is set during operation");
+                    }
+                }
+                
                 // Find target window
                 var targetWindow = FindFiveMWindow();
                 if (targetWindow == IntPtr.Zero)
@@ -773,6 +785,16 @@ namespace RPOverlay.WPF
                 }
 
                 DebugLogger.Log("Window should be active now, sending T key");
+                
+                // Extra verification and small delay to ensure window is truly ready
+                await Task.Delay(100);
+                foreground = NativeMethods.GetForegroundWindow();
+                if (foreground != targetWindow)
+                {
+                    DebugLogger.Log($"WARNING: Window lost focus again (now: {foreground}). Final attempt to focus...");
+                    NativeMethods.SetForegroundWindow(targetWindow);
+                    await Task.Delay(200);
+                }
 
                 // In debug mode with Notepad, use Clipboard + Ctrl+V method
                 if (_debugMode)
@@ -893,8 +915,23 @@ namespace RPOverlay.WPF
                 else
                 {
                     // For FiveM, use SendInput (original method)
+                    DebugLogger.Log("FiveM mode: Sending T key to open chat");
                     SendKeyPress(NativeMethods.VK_T);
-                    await Task.Delay(200);
+                    
+                    // Wait longer for FiveM's chat window to open
+                    await Task.Delay(500);
+                    DebugLogger.Log("T key sent, waiting for chat to open");
+                    
+                    // Verify focus again
+                    foreground = NativeMethods.GetForegroundWindow();
+                    DebugLogger.Log($"After T key - Foreground window: {foreground} (expected: {targetWindow})");
+                    
+                    if (foreground != targetWindow)
+                    {
+                        DebugLogger.Log("WARNING: Lost focus after T key, attempting to regain focus...");
+                        NativeMethods.SetForegroundWindow(targetWindow);
+                        await Task.Delay(200);
+                    }
                     
                     DebugLogger.Log($"Sending text: {preset.Text}");
                     SendText(preset.Text);
