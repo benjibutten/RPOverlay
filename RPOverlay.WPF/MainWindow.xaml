@@ -370,11 +370,19 @@
                                               Background="#FF1E1E1E"
                                               Panel.ZIndex="1">
                                             <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="*"/>
                                                 <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
 
-                                            <ScrollViewer Grid.Row="0"
+                                            <!-- Top border -->
+                                            <Border Grid.Row="0"
+                                                    Height="1"
+                                                    Background="#FF2F9DFF"
+                                                    Opacity="0.5"/>
+
+
+                                            <ScrollViewer Grid.Row="1"
                                                           x:Name="ChatScrollViewer"
                                                           VerticalScrollBarVisibility="Auto"
                                                           Background="Transparent">
@@ -451,7 +459,7 @@
                                                 </Border>
                                             </ScrollViewer>
 
-                                            <Border Grid.Row="1" Background="#FF2A2A2A" Padding="8">
+                                            <Border Grid.Row="2" Background="#FF2A2A2A" Padding="8">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>

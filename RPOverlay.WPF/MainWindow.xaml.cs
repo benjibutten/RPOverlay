@@ -114,6 +114,8 @@ namespace RPOverlay.WPF
         private int _lastSelectedTabIndex = -1; // Store the last selected tab index before opening chat
         private bool _isSettingTabIndex = false; // Flag to prevent SelectionChanged from closing chat when we programmatically change SelectedIndex
         private bool _isClosingChatFromTabClick = false; // Flag to indicate chat is being closed due to a tab click (not manual close)
+        private DispatcherTimer? _loadingAnimationTimer;
+        private int _loadingDotCount = 0;
 
         public MainWindow()
         {
@@ -958,14 +960,18 @@ namespace RPOverlay.WPF
             _isSendingMessage = true;
             OnPropertyChanged(nameof(CanSendMessage));
             
-            // Create assistant message placeholder
+            // Create assistant message placeholder with loading animation
             var assistantMsgViewModel = new ChatMessageViewModel
             {
                 IsUser = false,
-                Content = "",
+                Content = "●●●",
                 FontSize = _noteFontSize
             };
             _chatMessages.Add(assistantMsgViewModel);
+            
+            // Start loading animation
+            _loadingDotCount = 0;
+            StartLoadingAnimation(assistantMsgViewModel);
             
             try
             {
@@ -976,6 +982,14 @@ namespace RPOverlay.WPF
                 // Stream response
                 await foreach (var chunk in _chatService.SendMessageStreamAsync(userMessage, _chatCancellationTokenSource.Token))
                 {
+                    // Stop loading animation and clear placeholder on first chunk
+                    if (string.IsNullOrEmpty(assistantMsgViewModel.Content) || 
+                        assistantMsgViewModel.Content.All(c => c == '●' || c == ' '))
+                    {
+                        StopLoadingAnimation();
+                        assistantMsgViewModel.Content = "";
+                    }
+                    
                     assistantMsgViewModel.Content += chunk;
                     
                     // Scroll to bottom periodically
@@ -984,15 +998,18 @@ namespace RPOverlay.WPF
             }
             catch (OperationCanceledException)
             {
+                StopLoadingAnimation();
                 assistantMsgViewModel.Content = "[Meddelande avbrutet]";
             }
             catch (Exception ex)
             {
+                StopLoadingAnimation();
                 assistantMsgViewModel.Content = $"❌ Fel: {ex.Message}";
                 DebugLogger.LogException(ex);
             }
             finally
             {
+                StopLoadingAnimation();
                 _isSendingMessage = false;
                 OnPropertyChanged(nameof(CanSendMessage));
                 ScrollChatToBottom();
@@ -1012,6 +1029,33 @@ namespace RPOverlay.WPF
             }), DispatcherPriority.Background);
         }
 
+        private void StartLoadingAnimation(ChatMessageViewModel loadingMessage)
+        {
+            if (_loadingAnimationTimer != null)
+            {
+                _loadingAnimationTimer.Stop();
+            }
+
+            _loadingAnimationTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _loadingAnimationTimer.Tick += (s, e) =>
+            {
+                _loadingDotCount = (_loadingDotCount + 1) % 4;
+                var dots = string.Concat(Enumerable.Range(0, _loadingDotCount).Select(_ => "●")) +
+                          string.Concat(Enumerable.Range(0, 3 - _loadingDotCount).Select(_ => " "));
+                loadingMessage.Content = dots;
+            };
+            _loadingAnimationTimer.Start();
+        }
+
+        private void StopLoadingAnimation()
+        {
+            if (_loadingAnimationTimer != null)
+            {
+                _loadingAnimationTimer.Stop();
+                _loadingAnimationTimer = null;
+            }
+        }
+
         private void ClearChat_Click(object sender, RoutedEventArgs e)
         {
             var result = System.Windows.MessageBox.Show(
@@ -1024,19 +1068,6 @@ namespace RPOverlay.WPF
             {
                 _chatMessages.Clear();
                 _chatService.ClearHistory();
-                
-                // Add initial welcome message
-                var initialMessage = _chatService.IsConfigured
-                    ? "Hej! Jag är din AI-assistent. Hur kan jag hjälpa dig?"
-                    : "⚠️ AI-chatten är inte konfigurerad. Kontrollera API-nyckeln i inställningar.";
-                
-                _chatMessages.Add(new ChatMessageViewModel
-                {
-                    IsUser = false,
-                    Content = initialMessage,
-                    FontSize = _noteFontSize
-                });
-                
                 ScrollChatToBottom();
             }
         }
