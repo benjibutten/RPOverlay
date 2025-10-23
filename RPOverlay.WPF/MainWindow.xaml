@@ -138,7 +138,7 @@
                 <!-- Buttons -->
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Hidden"
-                              MaxHeight="200">
+                              MaxHeight="120">
                     <ItemsControl ItemsSource="{Binding Buttons}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -186,25 +186,22 @@
                 </ScrollViewer>
                 
                 <!-- Notes section with tabs -->
-<Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid Grid.Row="2" Margin="0,12,0,0">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
                     
-                    <!-- Tab Headers and Controls Row -->
-                    <Grid Grid.Row="0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        
-                        <!-- TabControl -->
-                        <TabControl Grid.Column="0" Grid.ColumnSpan="2" Grid.RowSpan="2"
-                                    x:Name="NotesTabControl"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Padding="0">
+                    <!-- TabControl takes full space -->
+                    <TabControl x:Name="NotesTabControl"
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="0">
                         <TabControl.Resources>
                             <Style TargetType="TabItem">
                                 <Setter Property="Template">
@@ -293,19 +290,61 @@
                                                 ToolTip="Lägg till ny anteckning"/>
                                     </StackPanel>
                                     
-                                    <!-- Tab content -->
-                                    <ContentPresenter Grid.Row="1" 
-                                                      ContentSource="SelectedContent"
-                                                      HorizontalAlignment="Stretch"
-                                                      VerticalAlignment="Stretch"
-                                                      Margin="0,4,0,0"/>
+                                    <!-- Tab content with scrolling -->
+                                    <ScrollViewer Grid.Row="1"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  Background="Transparent">
+                                        <ScrollViewer.Resources>
+                                            <Style TargetType="{x:Type ScrollBar}">
+                                                <Setter Property="Width" Value="4"/>
+                                                <Setter Property="MinWidth" Value="4"/>
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Setter Property="Foreground" Value="#FF2F9DFF"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                                            <Grid x:Name="Bg" Width="4">
+                                                                <Track x:Name="PART_Track" 
+                                                                       IsDirectionReversed="True"
+                                                                       Width="4">
+                                                                    <Track.DecreaseRepeatButton>
+                                                                        <RepeatButton Opacity="0" Command="ScrollBar.PageUpCommand"/>
+                                                                    </Track.DecreaseRepeatButton>
+                                                                    <Track.Thumb>
+                                                                        <Thumb Width="4">
+                                                                            <Thumb.Template>
+                                                                                <ControlTemplate TargetType="{x:Type Thumb}">
+                                                                                    <Border Background="#FF2F9DFF" 
+                                                                                            CornerRadius="2"
+                                                                                            Width="4"
+                                                                                            Opacity="0.6"/>
+                                                                                </ControlTemplate>
+                                                                            </Thumb.Template>
+                                                                        </Thumb>
+                                                                    </Track.Thumb>
+                                                                    <Track.IncreaseRepeatButton>
+                                                                        <RepeatButton Opacity="0" Command="ScrollBar.PageDownCommand"/>
+                                                                    </Track.IncreaseRepeatButton>
+                                                                </Track>
+                                                            </Grid>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ScrollViewer.Resources>
+                                        <ContentPresenter ContentSource="SelectedContent"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Top"
+                                                          Margin="0,4,0,0"/>
+                                    </ScrollViewer>
                                 </Grid>
                             </ControlTemplate>
                         </TabControl.Template>
                     </TabControl>
                     
-                    <!-- Chat Toggle Button - Outside TabControl, highest z-index -->
+                    <!-- Chat Toggle Button - Overlays in top-right corner -->
                     <ToggleButton x:Name="ChatToggleButton"
+                                  Grid.Row="0"
                                   Grid.Column="1"
                                   Content="💬 Chatt"
                                   Click="ChatToggle_Click"
@@ -317,8 +356,8 @@
                                   Padding="8,4"
                                   VerticalAlignment="Top"
                                   HorizontalAlignment="Right"
-                                  Margin="8,0,0,0"
-                                  Panel.ZIndex="2000"
+                                  Margin="0,4,4,0"
+                                  Panel.ZIndex="100"
                                   ToolTip="Öppna AI Chat">
                         <ToggleButton.Template>
                             <ControlTemplate TargetType="ToggleButton">
@@ -343,12 +382,12 @@
                             </Style>
                         </ToggleButton.Style>
                     </ToggleButton>
-                    </Grid>
                     
-                    <!-- Chat Interface - covers entire notes section including tabs -->
+                    <!-- Chat Interface - covers entire notes section -->
                     <Grid x:Name="ChatInterface" 
                           Grid.Row="0"
-                          Grid.RowSpan="2"
+                          Grid.Column="0"
+                          Grid.ColumnSpan="2"
                           Background="#FF1E1E1E"
                           Visibility="Collapsed"
                           Panel.ZIndex="1000">
@@ -526,35 +565,35 @@
                             </Grid>
                         </Border>
                     </Grid>
-                    
-                    <!-- Left Resize grip - bottom-left corner -->
-                    <Thumb Grid.Row="1"
-                           x:Name="ResizeThumbLeft"
-                           HorizontalAlignment="Left"
-                           VerticalAlignment="Bottom"
-                           Width="20"
-                           Height="20"
-                           Margin="-4,0,0,-4"
-                           Cursor="SizeNESW"
-                           DragDelta="ResizeThumbLeft_DragDelta"
-                           Panel.ZIndex="2000"
-                           Background="Transparent"
-                           Opacity="0"/>
-
-                    <!-- Right Resize grip - bottom-right corner -->
-                    <Thumb Grid.Row="1"
-                           x:Name="ResizeThumbRight"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Bottom"
-                           Width="20"
-                           Height="20"
-                           Margin="0,0,-4,-4"
-                           Cursor="SizeNWSE"
-                           DragDelta="ResizeThumbRight_DragDelta"
-                           Panel.ZIndex="2000"
-                           Background="Transparent"
-                           Opacity="0"/>
                 </Grid>
+                
+                <!-- Left Resize grip - bottom-left corner -->
+                <Thumb Grid.Row="2"
+                       x:Name="ResizeThumbLeft"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Bottom"
+                       Width="20"
+                       Height="20"
+                       Margin="-4,0,0,-4"
+                       Cursor="SizeNESW"
+                       DragDelta="ResizeThumbLeft_DragDelta"
+                       Panel.ZIndex="2000"
+                       Background="Transparent"
+                       Opacity="0"/>
+
+                <!-- Right Resize grip - bottom-right corner -->
+                <Thumb Grid.Row="2"
+                       x:Name="ResizeThumbRight"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom"
+                       Width="20"
+                       Height="20"
+                       Margin="0,0,-4,-4"
+                       Cursor="SizeNWSE"
+                       DragDelta="ResizeThumbRight_DragDelta"
+                       Panel.ZIndex="2000"
+                       Background="Transparent"
+                       Opacity="0"/>
             </Grid>
         </Border>
     </Grid>
