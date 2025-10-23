@@ -52,6 +52,7 @@ namespace RPOverlay.WPF
     public class ChatMessageViewModel : INotifyPropertyChanged
     {
         private string _content = string.Empty;
+        private double _fontSize = 13.0;
         
         public bool IsUser { get; set; }
         
@@ -67,7 +68,17 @@ namespace RPOverlay.WPF
         }
         
         public System.Windows.HorizontalAlignment HorizontalAlignment => IsUser ? System.Windows.HorizontalAlignment.Right : System.Windows.HorizontalAlignment.Left;
-        public double FontSize { get; set; } = 13.0;
+        
+        public double FontSize
+        {
+            get => _fontSize;
+            set
+            {
+                if (_fontSize == value) return;
+                _fontSize = value;
+                OnPropertyChanged();
+            }
+        }
         
         public event PropertyChangedEventHandler? PropertyChanged;
         
