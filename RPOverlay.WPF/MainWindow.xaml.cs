@@ -104,7 +104,10 @@ namespace RPOverlay.WPF
         // Chat-related fields
         private readonly ChatService _chatService = new();
         private readonly ObservableCollection<ChatMessageViewModel> _chatMessages = new();
-        private bool _isChatVisible = false;
+        private ToggleButton? _chatToggle;
+        private ItemsControl? _chatMessagesControl;
+        private System.Windows.Controls.TextBox? _chatInputBox;
+        private ScrollViewer? _chatScrollViewer;
         private bool _isSendingMessage = false;
         private string _chatInputText = string.Empty;
         private CancellationTokenSource? _chatCancellationTokenSource;
@@ -115,6 +118,8 @@ namespace RPOverlay.WPF
             {
                 InitializeComponent();
                 DataContext = this;
+                NotesTabControl.Loaded += NotesTabControl_Loaded;
+                NotesTabControl.SelectionChanged += NotesTabControl_SelectionChanged;
 
                 // Check for debug mode argument
                 var args = Environment.GetCommandLineArgs();
@@ -759,57 +764,112 @@ namespace RPOverlay.WPF
             SaveUserSettings(); // Save updated tab list
         }
         
-        private void ChatToggle_Click(object sender, RoutedEventArgs e)
+        private void NotesTabControl_Loaded(object sender, RoutedEventArgs e)
         {
-            _isChatVisible = ChatToggleButton.IsChecked == true;
-            
-            if (_isChatVisible)
+            InitializeChatTemplateParts();
+        }
+
+        private void NotesTabControl_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            // Hide chat when a note tab is selected
+            if (_chatToggle != null && _chatToggle.IsChecked == true)
             {
-                // Show chat interface
-                ChatInterface.Visibility = Visibility.Visible;
-                
-                // Initialize chat messages if first time
-                if (ChatMessages.ItemsSource == null)
-                {
-                    ChatMessages.ItemsSource = _chatMessages;
-                    
-                    // Add welcome message if configured
-                    if (_chatService.IsConfigured)
-                    {
-                        _chatMessages.Add(new ChatMessageViewModel
-                        {
-                            IsUser = false,
-                            Content = "Hej! Hur kan jag hjälpa dig idag?",
-                            FontSize = _noteFontSize
-                        });
-                    }
-                    else
-                    {
-                        _chatMessages.Add(new ChatMessageViewModel
-                        {
-                            IsUser = false,
-                            Content = "⚠️ OpenAI API-nyckel saknas. Lägg till den i inställningar för att börja chatta.",
-                            FontSize = _noteFontSize
-                        });
-                    }
-                }
-                
-                // Focus input box
-                ChatInputBox.Focus();
-            }
-            else
-            {
-                // Hide chat
-                ChatInterface.Visibility = Visibility.Collapsed;
+                _chatToggle.IsChecked = false;
             }
         }
-        
+
+        private void InitializeChatTemplateParts()
+        {
+            if (NotesTabControl == null)
+            {
+                return;
+            }
+
+            NotesTabControl.ApplyTemplate();
+
+            var toggle = NotesTabControl.Template?.FindName("ChatToggle", NotesTabControl) as ToggleButton;
+            if (!ReferenceEquals(_chatToggle, toggle))
+            {
+                if (_chatToggle != null)
+                {
+                    _chatToggle.Checked -= ChatToggle_Checked;
+                    _chatToggle.Unchecked -= ChatToggle_Unchecked;
+                }
+
+                _chatToggle = toggle;
+
+                if (_chatToggle != null)
+                {
+                    _chatToggle.Checked += ChatToggle_Checked;
+                    _chatToggle.Unchecked += ChatToggle_Unchecked;
+                }
+            }
+
+            if (NotesTabControl.Template != null)
+            {
+                var messages = NotesTabControl.Template.FindName("ChatMessages", NotesTabControl) as ItemsControl;
+                if (messages != null)
+                {
+                    _chatMessagesControl = messages;
+                    if (_chatMessagesControl.ItemsSource == null)
+                    {
+                        _chatMessagesControl.ItemsSource = _chatMessages;
+                    }
+                }
+
+                var chatInput = NotesTabControl.Template.FindName("ChatInputBox", NotesTabControl) as System.Windows.Controls.TextBox;
+                if (chatInput != null)
+                {
+                    _chatInputBox = chatInput;
+                }
+
+                var chatScroll = NotesTabControl.Template.FindName("ChatScrollViewer", NotesTabControl) as ScrollViewer;
+                if (chatScroll != null)
+                {
+                    _chatScrollViewer = chatScroll;
+                }
+            }
+        }
+
+        private void ChatToggle_Checked(object sender, RoutedEventArgs e)
+        {
+            InitializeChatTemplateParts();
+
+            if (_chatMessagesControl != null && _chatMessagesControl.ItemsSource == null)
+            {
+                _chatMessagesControl.ItemsSource = _chatMessages;
+            }
+
+            if (_chatMessages.Count == 0)
+            {
+                var initialMessage = _chatService.IsConfigured
+                    ? "Hej! Hur kan jag hjälpa dig idag?"
+                    : "⚠️ OpenAI API-nyckel saknas. Lägg till den i inställningar för att börja chatta.";
+
+                _chatMessages.Add(new ChatMessageViewModel
+                {
+                    IsUser = false,
+                    Content = initialMessage,
+                    FontSize = _noteFontSize
+                });
+            }
+
+            _chatInputBox?.Focus();
+            ScrollChatToBottom();
+        }
+
+        private void ChatToggle_Unchecked(object sender, RoutedEventArgs e)
+        {
+            // Visibility is handled via binding; no manual action required.
+        }
+
         private void CloseChat_Click(object sender, RoutedEventArgs e)
         {
-            // Close chat interface
-            ChatInterface.Visibility = Visibility.Collapsed;
-            ChatToggleButton.IsChecked = false;
-            _isChatVisible = false;
+            InitializeChatTemplateParts();
+            if (_chatToggle != null)
+            {
+                _chatToggle.IsChecked = false;
+            }
         }
         
         private void ChatInput_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -824,6 +884,12 @@ namespace RPOverlay.WPF
         private async void SendChat_Click(object sender, RoutedEventArgs e)
         {
             if (!CanSendMessage) return;
+
+            InitializeChatTemplateParts();
+            if (_chatMessagesControl != null && _chatMessagesControl.ItemsSource == null)
+            {
+                _chatMessagesControl.ItemsSource = _chatMessages;
+            }
             
             var userMessage = ChatInputText.Trim();
             if (string.IsNullOrWhiteSpace(userMessage)) return;
@@ -892,7 +958,12 @@ namespace RPOverlay.WPF
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                ChatScrollViewer.ScrollToBottom();
+                if (_chatScrollViewer == null)
+                {
+                    InitializeChatTemplateParts();
+                }
+
+                _chatScrollViewer?.ScrollToBottom();
             }), DispatcherPriority.Background);
         }
 
@@ -1661,6 +1732,9 @@ namespace RPOverlay.WPF
 
             _configService.ConfigReloaded -= OnConfigReloaded;
             _configService.Dispose();
+
+            NotesTabControl.Loaded -= NotesTabControl_Loaded;
+            NotesTabControl.SelectionChanged -= NotesTabControl_SelectionChanged;
             
             // Cancel any ongoing chat operations
             _chatCancellationTokenSource?.Cancel();

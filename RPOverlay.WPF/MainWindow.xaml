@@ -187,27 +187,18 @@
                 
                 <!-- Notes section with tabs -->
                 <Grid Grid.Row="2" Margin="0,12,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    
-                    <!-- TabControl takes full space -->
                     <TabControl x:Name="NotesTabControl"
-                                Grid.Row="0"
-                                Grid.Column="0"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Padding="0">
                         <TabControl.Resources>
+                            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
                             <Style TargetType="TabItem">
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="TabItem">
-                                            <Border Name="Border"
+                                            <Border x:Name="Border"
                                                     Background="#FF1C1C1C"
                                                     BorderBrush="#FF2F9DFF"
                                                     BorderThickness="1,1,1,0"
@@ -219,7 +210,6 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-                                                    
                                                     <ContentPresenter Grid.Column="0"
                                                                       ContentSource="Header"
                                                                       VerticalAlignment="Center"
@@ -231,7 +221,6 @@
                                                             </Style>
                                                         </ContentPresenter.Resources>
                                                     </ContentPresenter>
-                                                    
                                                     <Button Grid.Column="1"
                                                             Content="✕"
                                                             Click="CloseTab_Click"
@@ -262,8 +251,7 @@
                                 <Setter Property="Foreground" Value="White"/>
                             </Style>
                         </TabControl.Resources>
-                        
-                        <!-- Custom ItemsPanel with add button -->
+
                         <TabControl.Template>
                             <ControlTemplate TargetType="TabControl">
                                 <Grid>
@@ -271,300 +259,270 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
-                                    
-                                    <!-- Tab headers with + button -->
-                                    <StackPanel Grid.Row="0" Orientation="Horizontal">
-                                        <TabPanel IsItemsHost="True" Background="Transparent"/>
-                                        <Button Content="+"
-                                                Click="AddNoteTab_Click"
-                                                Width="24"
-                                                Height="24"
-                                                Background="#FF2F9DFF"
-                                                Foreground="White"
-                                                BorderThickness="0"
-                                                FontSize="16"
-                                                FontWeight="Bold"
-                                                Cursor="Hand"
-                                                Margin="4,0,0,0"
-                                                VerticalAlignment="Top"
-                                                ToolTip="Lägg till ny anteckning"/>
-                                    </StackPanel>
-                                    
-                                    <!-- Tab content with scrolling -->
-                                    <ScrollViewer Grid.Row="1"
-                                                  VerticalScrollBarVisibility="Auto"
-                                                  Background="Transparent">
-                                        <ScrollViewer.Resources>
-                                            <Style TargetType="{x:Type ScrollBar}">
-                                                <Setter Property="Width" Value="4"/>
-                                                <Setter Property="MinWidth" Value="4"/>
-                                                <Setter Property="Background" Value="Transparent"/>
-                                                <Setter Property="Foreground" Value="#FF2F9DFF"/>
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="{x:Type ScrollBar}">
-                                                            <Grid x:Name="Bg" Width="4">
-                                                                <Track x:Name="PART_Track" 
-                                                                       IsDirectionReversed="True"
-                                                                       Width="4">
-                                                                    <Track.DecreaseRepeatButton>
-                                                                        <RepeatButton Opacity="0" Command="ScrollBar.PageUpCommand"/>
-                                                                    </Track.DecreaseRepeatButton>
-                                                                    <Track.Thumb>
-                                                                        <Thumb Width="4">
-                                                                            <Thumb.Template>
-                                                                                <ControlTemplate TargetType="{x:Type Thumb}">
-                                                                                    <Border Background="#FF2F9DFF" 
-                                                                                            CornerRadius="2"
-                                                                                            Width="4"
-                                                                                            Opacity="0.6"/>
-                                                                                </ControlTemplate>
-                                                                            </Thumb.Template>
-                                                                        </Thumb>
-                                                                    </Track.Thumb>
-                                                                    <Track.IncreaseRepeatButton>
-                                                                        <RepeatButton Opacity="0" Command="ScrollBar.PageDownCommand"/>
-                                                                    </Track.IncreaseRepeatButton>
-                                                                </Track>
-                                                            </Grid>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
-                                            </Style>
-                                        </ScrollViewer.Resources>
-                                        <ContentPresenter ContentSource="SelectedContent"
-                                                          HorizontalAlignment="Stretch"
-                                                          VerticalAlignment="Top"
-                                                          Margin="0,4,0,0"/>
-                                    </ScrollViewer>
+
+                                    <DockPanel Grid.Row="0" LastChildFill="False">
+                                        <ToggleButton x:Name="ChatToggle"
+                                                      DockPanel.Dock="Right"
+                                                      Content="💬 Chatt"
+                                                      Height="24"
+                                                      Foreground="White"
+                                                      BorderThickness="0"
+                                                      FontSize="11"
+                                                      Cursor="Hand"
+                                                      Padding="8,4"
+                                                      Margin="4,0,0,0"
+                                                      VerticalAlignment="Top"
+                                                      ToolTip="Öppna AI Chat">
+                                            <ToggleButton.Template>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Border Background="{TemplateBinding Background}"
+                                                            BorderBrush="#FF2F9DFF"
+                                                            BorderThickness="1,1,1,0"
+                                                            CornerRadius="4,4,0,0"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </ToggleButton.Template>
+                                            <ToggleButton.Style>
+                                                <Style TargetType="ToggleButton">
+                                                    <Setter Property="Background" Value="#FF2A2A2A"/>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter Property="Background" Value="#FF2F9DFF"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ToggleButton.Style>
+                                        </ToggleButton>
+
+                    <TabPanel DockPanel.Dock="Left"
+                          IsItemsHost="True"
+                          Background="Transparent"
+                          HorizontalAlignment="Left"/>
+
+                    <Button DockPanel.Dock="Left"
+                        Content="+"
+                        Click="AddNoteTab_Click"
+                        Width="24"
+                        Height="24"
+                        Background="#FF2F9DFF"
+                        Foreground="White"
+                        BorderThickness="0"
+                        FontSize="16"
+                        FontWeight="Bold"
+                        Cursor="Hand"
+                        Margin="4,0,0,0"
+                        VerticalAlignment="Top"
+                        ToolTip="Lägg till ny anteckning"/>
+                                    </DockPanel>
+
+                                    <Grid Grid.Row="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              Background="Transparent"
+                              HorizontalContentAlignment="Stretch"
+                              VerticalContentAlignment="Stretch">
+                                            <ScrollViewer.Resources>
+                                                <Style TargetType="{x:Type ScrollBar}">
+                                                    <Setter Property="Width" Value="4"/>
+                                                    <Setter Property="MinWidth" Value="4"/>
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="Foreground" Value="#FF2F9DFF"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                                                <Grid x:Name="Bg" Width="4">
+                                                                    <Track x:Name="PART_Track"
+                                                                           IsDirectionReversed="True"
+                                                                           Width="4">
+                                                                        <Track.DecreaseRepeatButton>
+                                                                            <RepeatButton Opacity="0" Command="ScrollBar.PageUpCommand"/>
+                                                                        </Track.DecreaseRepeatButton>
+                                                                        <Track.Thumb>
+                                                                            <Thumb Width="4">
+                                                                                <Thumb.Template>
+                                                                                    <ControlTemplate TargetType="{x:Type Thumb}">
+                                                                                        <Border Background="#FF2F9DFF"
+                                                                                                CornerRadius="2"
+                                                                                                Width="4"
+                                                                                                Opacity="0.6"/>
+                                                                                    </ControlTemplate>
+                                                                                </Thumb.Template>
+                                                                            </Thumb>
+                                                                        </Track.Thumb>
+                                                                        <Track.IncreaseRepeatButton>
+                                                                            <RepeatButton Opacity="0" Command="ScrollBar.PageDownCommand"/>
+                                                                        </Track.IncreaseRepeatButton>
+                                                                    </Track>
+                                                                </Grid>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ScrollViewer.Resources>
+
+                                            <ContentPresenter ContentSource="SelectedContent"
+                                                              HorizontalAlignment="Stretch"
+                                                              VerticalAlignment="Top"
+                                                              Margin="0,4,0,0"/>
+                                        </ScrollViewer>
+
+                                        <Grid x:Name="ChatInterface"
+                                              Visibility="{Binding IsChecked, ElementName=ChatToggle, Converter={StaticResource BoolToVis}}"
+                                              Background="#FF1E1E1E"
+                                              Panel.ZIndex="1">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <ScrollViewer Grid.Row="0"
+                                                          x:Name="ChatScrollViewer"
+                                                          VerticalScrollBarVisibility="Auto"
+                                                          Background="Transparent">
+                                                <ScrollViewer.Resources>
+                                                    <Style TargetType="{x:Type ScrollBar}">
+                                                        <Setter Property="Width" Value="4"/>
+                                                        <Setter Property="MinWidth" Value="4"/>
+                                                        <Setter Property="Background" Value="Transparent"/>
+                                                        <Setter Property="Foreground" Value="#FF2F9DFF"/>
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                                                    <Grid x:Name="Bg" Width="4">
+                                                                        <Track x:Name="PART_Track"
+                                                                               IsDirectionReversed="True"
+                                                                               Width="4">
+                                                                            <Track.DecreaseRepeatButton>
+                                                                                <RepeatButton Opacity="0" Command="ScrollBar.PageUpCommand"/>
+                                                                            </Track.DecreaseRepeatButton>
+                                                                            <Track.Thumb>
+                                                                                <Thumb Width="4">
+                                                                                    <Thumb.Template>
+                                                                                        <ControlTemplate TargetType="{x:Type Thumb}">
+                                                                                            <Border Background="#FF2F9DFF"
+                                                                                                    CornerRadius="2"
+                                                                                                    Width="4"
+                                                                                                    Opacity="0.6"/>
+                                                                                        </ControlTemplate>
+                                                                                    </Thumb.Template>
+                                                                                </Thumb>
+                                                                            </Track.Thumb>
+                                                                            <Track.IncreaseRepeatButton>
+                                                                                <RepeatButton Opacity="0" Command="ScrollBar.PageDownCommand"/>
+                                                                            </Track.IncreaseRepeatButton>
+                                                                        </Track>
+                                                                    </Grid>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Style>
+                                                </ScrollViewer.Resources>
+                                                <Border Padding="8">
+                                                    <ItemsControl x:Name="ChatMessages">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Margin="4,2"
+                                                                        Padding="10,8"
+                                                                        CornerRadius="8"
+                                                                        HorizontalAlignment="Stretch">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Setter Property="Background" Value="#FF2F9DFF"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsUser}" Value="False">
+                                                                                    <Setter Property="Background" Value="#FF2A2A2A"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <TextBox Text="{Binding Content, Mode=OneWay}"
+                                                                             TextWrapping="Wrap"
+                                                                             Foreground="White"
+                                                                             FontSize="{Binding FontSize}"
+                                                                             Background="Transparent"
+                                                                             BorderThickness="0"
+                                                                             IsReadOnly="True"
+                                                                             Cursor="Arrow"
+                                                                             Focusable="True"
+                                                                             IsTabStop="False"/>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </Border>
+                                            </ScrollViewer>
+
+                                            <Border Grid.Row="1" Background="#FF2A2A2A" Padding="8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBox x:Name="ChatInputBox"
+                                                             Grid.Column="0"
+                                                             Background="#FF1C1C1C"
+                                                             Foreground="White"
+                                                             BorderBrush="#FF3A3A3A"
+                                                             BorderThickness="1"
+                                                             Padding="8"
+                                                             FontSize="13"
+                                                             TextWrapping="Wrap"
+                                                             AcceptsReturn="False"
+                                                             MaxHeight="100"
+                                                             VerticalScrollBarVisibility="Auto"
+                                                             KeyDown="ChatInput_KeyDown"
+                                                             Text="{Binding ChatInputText, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                                    <Button x:Name="SendButton"
+                                                            Grid.Column="1"
+                                                            Click="SendChat_Click"
+                                                            Width="40"
+                                                            Height="40"
+                                                            Margin="4,0,0,0"
+                                                            Cursor="Hand"
+                                                            IsEnabled="{Binding CanSendMessage}"
+                                                            ToolTip="Skicka meddelande (Enter)">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="SendButtonBorder"
+                                                                        Background="#FF2F9DFF"
+                                                                        CornerRadius="4"
+                                                                        BorderBrush="#FF1E9FFF"
+                                                                        BorderThickness="1">
+                                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                                      VerticalAlignment="Center"/>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF1E9FFF"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsPressed" Value="True">
+                                                                        <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF0D8FFF"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsEnabled" Value="False">
+                                                                        <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF555555"/>
+                                                                        <Setter Property="Foreground" Value="#FF888888"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                        <StackPanel Orientation="Horizontal"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center">
+                                                            <TextBlock Text="➤" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Grid>
                                 </Grid>
                             </ControlTemplate>
                         </TabControl.Template>
                     </TabControl>
-                    
-                    <!-- Chat Toggle Button - Overlays in top-right corner -->
-                    <ToggleButton x:Name="ChatToggleButton"
-                                  Grid.Row="0"
-                                  Grid.Column="1"
-                                  Content="💬 Chatt"
-                                  Click="ChatToggle_Click"
-                                  Height="24"
-                                  Foreground="White"
-                                  BorderThickness="0"
-                                  FontSize="11"
-                                  Cursor="Hand"
-                                  Padding="8,4"
-                                  VerticalAlignment="Top"
-                                  HorizontalAlignment="Right"
-                                  Margin="0,4,4,0"
-                                  Panel.ZIndex="100"
-                                  ToolTip="Öppna AI Chat">
-                        <ToggleButton.Template>
-                            <ControlTemplate TargetType="ToggleButton">
-                                <Border Background="{TemplateBinding Background}"
-                                        BorderBrush="#FF2F9DFF"
-                                        BorderThickness="1,1,1,0"
-                                        CornerRadius="4,4,0,0"
-                                        Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter HorizontalAlignment="Center" 
-                                                     VerticalAlignment="Center"/>
-                                </Border>
-                            </ControlTemplate>
-                        </ToggleButton.Template>
-                        <ToggleButton.Style>
-                            <Style TargetType="ToggleButton">
-                                <Setter Property="Background" Value="#FF2A2A2A"/>
-                                <Style.Triggers>
-                                    <Trigger Property="IsChecked" Value="True">
-                                        <Setter Property="Background" Value="#FF2F9DFF"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ToggleButton.Style>
-                    </ToggleButton>
-                    
-                    <!-- Chat Interface - covers entire notes section -->
-                    <Grid x:Name="ChatInterface" 
-                          Grid.Row="0"
-                          Grid.Column="0"
-                          Grid.ColumnSpan="2"
-                          Background="#FF1E1E1E"
-                          Visibility="Collapsed"
-                          Panel.ZIndex="1000">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        
-                        <!-- Close Chat Button -->
-                        <Border Grid.Row="0" 
-                                Background="#FF2A2A2A" 
-                                Padding="8,4"
-                                BorderBrush="#FF3A3A3A"
-                                BorderThickness="0,0,0,1">
-                            <Grid>
-                                <TextBlock Text="AI Chatt"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="White"
-                                           VerticalAlignment="Center"
-                                           HorizontalAlignment="Left"/>
-                                <Button Content="✕ Stäng"
-                                        Click="CloseChat_Click"
-                                        Background="Transparent"
-                                        Foreground="White"
-                                        BorderThickness="0"
-                                        FontSize="12"
-                                        Padding="8,4"
-                                        Cursor="Hand"
-                                        HorizontalAlignment="Right"
-                                        ToolTip="Stäng chattläge"/>
-                            </Grid>
-                        </Border>
-                        
-                        <!-- Chat Messages Area -->
-                        <ScrollViewer Grid.Row="1"
-                                      x:Name="ChatScrollViewer"
-                                      VerticalScrollBarVisibility="Auto"
-                                      Background="Transparent">
-                            <ScrollViewer.Resources>
-                                <!-- Ultra-smal scrollbar stil -->
-                                <Style TargetType="{x:Type ScrollBar}">
-                                    <Setter Property="Width" Value="4"/>
-                                    <Setter Property="MinWidth" Value="4"/>
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="#FF2F9DFF"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="{x:Type ScrollBar}">
-                                                <Grid x:Name="Bg" Width="4">
-                                                    <Track x:Name="PART_Track" 
-                                                           IsDirectionReversed="True"
-                                                           Width="4">
-                                                        <Track.DecreaseRepeatButton>
-                                                            <RepeatButton Opacity="0" Command="ScrollBar.PageUpCommand"/>
-                                                        </Track.DecreaseRepeatButton>
-                                                        <Track.Thumb>
-                                                            <Thumb Width="4">
-                                                                <Thumb.Template>
-                                                                    <ControlTemplate TargetType="{x:Type Thumb}">
-                                                                        <Border Background="#FF2F9DFF" 
-                                                                                CornerRadius="2"
-                                                                                Width="4"
-                                                                                Opacity="0.6"/>
-                                                                    </ControlTemplate>
-                                                                </Thumb.Template>
-                                                            </Thumb>
-                                                        </Track.Thumb>
-                                                        <Track.IncreaseRepeatButton>
-                                                            <RepeatButton Opacity="0" Command="ScrollBar.PageDownCommand"/>
-                                                        </Track.IncreaseRepeatButton>
-                                                    </Track>
-                                                </Grid>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </ScrollViewer.Resources>
-                            <Border Padding="8">
-                                <ItemsControl x:Name="ChatMessages">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Margin="4,2"
-                                                    Padding="10,8"
-                                                    CornerRadius="8"
-                                                    HorizontalAlignment="Stretch">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="#FF2F9DFF"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsUser}" Value="False">
-                                                                <Setter Property="Background" Value="#FF2A2A2A"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <TextBox Text="{Binding Content, Mode=OneWay}"
-                                                         TextWrapping="Wrap"
-                                                         Foreground="White"
-                                                         FontSize="{Binding FontSize}"
-                                                         Background="Transparent"
-                                                         BorderThickness="0"
-                                                         IsReadOnly="True"
-                                                         Cursor="Arrow"
-                                                         Focusable="True"
-                                                         IsTabStop="False"/>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Border>
-                        </ScrollViewer>
-                        
-                        <!-- Input Area -->
-                        <Border Grid.Row="2" Background="#FF2A2A2A" Padding="8">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                            
-                                <TextBox x:Name="ChatInputBox"
-                                         Grid.Column="0"
-                                         Background="#FF1C1C1C"
-                                         Foreground="White"
-                                         BorderBrush="#FF3A3A3A"
-                                         BorderThickness="1"
-                                         Padding="8"
-                                         FontSize="13"
-                                         TextWrapping="Wrap"
-                                         AcceptsReturn="False"
-                                         MaxHeight="100"
-                                         VerticalScrollBarVisibility="Auto"
-                                         KeyDown="ChatInput_KeyDown"
-                                         Text="{Binding ChatInputText, UpdateSourceTrigger=PropertyChanged}"/>
-                            
-                                <Button x:Name="SendButton"
-                                        Grid.Column="1"
-                                        Click="SendChat_Click"
-                                        Width="40"
-                                        Height="40"
-                                        Margin="4,0,0,0"
-                                        Cursor="Hand"
-                                        IsEnabled="{Binding CanSendMessage}"
-                                        ToolTip="Skicka meddelande (Enter)">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="SendButtonBorder"
-                                                    Background="#FF2F9DFF"
-                                                    CornerRadius="4"
-                                                    BorderBrush="#FF1E9FFF"
-                                                    BorderThickness="1">
-                                                <ContentPresenter HorizontalAlignment="Center"
-                                                                  VerticalAlignment="Center"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF1E9FFF"/>
-                                                </Trigger>
-                                                <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF0D8FFF"/>
-                                                </Trigger>
-                                                <Trigger Property="IsEnabled" Value="False">
-                                                    <Setter TargetName="SendButtonBorder" Property="Background" Value="#FF555555"/>
-                                                    <Setter Property="Foreground" Value="#FF888888"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <TextBlock Text="➤" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
-                        </Border>
-                    </Grid>
                 </Grid>
                 
                 <!-- Left Resize grip - bottom-left corner -->
