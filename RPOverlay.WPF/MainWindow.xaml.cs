@@ -111,6 +111,9 @@ namespace RPOverlay.WPF
         private bool _isSendingMessage = false;
         private string _chatInputText = string.Empty;
         private CancellationTokenSource? _chatCancellationTokenSource;
+        private int _lastSelectedTabIndex = -1; // Store the last selected tab index before opening chat
+        private bool _isSettingTabIndex = false; // Flag to prevent SelectionChanged from closing chat when we programmatically change SelectedIndex
+        private bool _isClosingChatFromTabClick = false; // Flag to indicate chat is being closed due to a tab click (not manual close)
 
         public MainWindow()
         {
@@ -771,9 +774,17 @@ namespace RPOverlay.WPF
 
         private void NotesTabControl_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
+            // Ignore changes when we're programmatically setting the index (e.g., when opening chat)
+            if (_isSettingTabIndex)
+            {
+                return;
+            }
+
             // Hide chat when a note tab is selected
             if (_chatToggle != null && _chatToggle.IsChecked == true)
             {
+                // Set flag to indicate chat is being closed due to a tab click
+                _isClosingChatFromTabClick = true;
                 _chatToggle.IsChecked = false;
             }
         }
@@ -833,6 +844,18 @@ namespace RPOverlay.WPF
 
         private void ChatToggle_Checked(object sender, RoutedEventArgs e)
         {
+            // Store the currently selected tab index before deselecting
+            _lastSelectedTabIndex = NotesTabControl.SelectedIndex;
+            
+            // Set flag to prevent SelectionChanged from closing chat
+            _isSettingTabIndex = true;
+            
+            // Deselect the current note tab when opening chat
+            NotesTabControl.SelectedIndex = -1;
+            
+            // Reset flag after setting
+            _isSettingTabIndex = false;
+
             InitializeChatTemplateParts();
 
             if (_chatMessagesControl != null && _chatMessagesControl.ItemsSource == null)
@@ -860,7 +883,29 @@ namespace RPOverlay.WPF
 
         private void ChatToggle_Unchecked(object sender, RoutedEventArgs e)
         {
-            // Visibility is handled via binding; no manual action required.
+            // Only restore the previously selected tab if chat was closed manually (not due to a tab click)
+            if (!_isClosingChatFromTabClick)
+            {
+                // Set flag to prevent SelectionChanged from interfering
+                _isSettingTabIndex = true;
+                
+                // Restore the previously selected tab when closing chat
+                if (_lastSelectedTabIndex >= 0 && _lastSelectedTabIndex < NotesTabControl.Items.Count)
+                {
+                    NotesTabControl.SelectedIndex = _lastSelectedTabIndex;
+                }
+                else if (NotesTabControl.Items.Count > 0)
+                {
+                    // If last index is invalid, select the first tab
+                    NotesTabControl.SelectedIndex = 0;
+                }
+                
+                // Reset flag
+                _isSettingTabIndex = false;
+            }
+            
+            // Reset the flag for next time
+            _isClosingChatFromTabClick = false;
         }
 
         private void CloseChat_Click(object sender, RoutedEventArgs e)
