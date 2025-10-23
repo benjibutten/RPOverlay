@@ -83,7 +83,9 @@
                                    VerticalAlignment="Center"/>
 
                         <TextBox Grid.Column="1"
+                                 x:Name="PromptNameTextBox"
                                  Text="{Binding PromptName, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsNameFieldEnabled}"
                                  Background="#FF1C1C1C"
                                  Foreground="White"
                                  BorderBrush="#FF2F9DFF"
@@ -107,7 +109,9 @@
                                    VerticalAlignment="Center"/>
 
                         <TextBox Grid.Column="1"
+                                 x:Name="DisplayNameTextBox"
                                  Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsNameFieldEnabled}"
                                  Background="#FF1C1C1C"
                                  Foreground="White"
                                  BorderBrush="#FF2F9DFF"

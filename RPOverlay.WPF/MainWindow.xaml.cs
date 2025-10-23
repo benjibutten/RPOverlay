@@ -732,8 +732,20 @@ namespace RPOverlay.WPF
             
             if (settingsWindow.ShowDialog() == true)
             {
+                // Save old prompt name BEFORE loading new settings
+                var oldPromptName = _userSettingsService.Current.ActivePromptName;
+                
                 // Reload user settings after they've been saved
                 var settings = _userSettingsService.Load();
+                
+                // Check if prompt was changed
+                if (oldPromptName != settings.ActivePromptName)
+                {
+                    // Clear chat history when prompt changes (keeps system message)
+                    _chatMessages.Clear();
+                    _chatService.ClearHistory();
+                    DebugLogger.Log($"Chat cleared due to prompt change: {oldPromptName} -> {settings.ActivePromptName}");
+                }
                 
                 // Reconfigure ChatService with potentially new API key and prompt
                 InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName);
@@ -1093,6 +1105,19 @@ namespace RPOverlay.WPF
             {
                 _chatMessages.Clear();
                 _chatService.ClearHistory();
+                
+                // Lägg till välkomstmeddelandet igen
+                var initialMessage = _chatService.IsConfigured
+                    ? "Hej! Hur kan jag hjälpa dig idag?"
+                    : "⚠️ OpenAI API-nyckel saknas. Lägg till den i inställningar för att börja chatta.";
+
+                _chatMessages.Add(new ChatMessageViewModel
+                {
+                    IsUser = false,
+                    Content = initialMessage,
+                    FontSize = _noteFontSize
+                });
+                
                 ScrollChatToBottom();
             }
         }

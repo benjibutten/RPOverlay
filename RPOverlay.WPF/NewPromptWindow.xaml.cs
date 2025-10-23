@@ -13,6 +13,9 @@ namespace RPOverlay.WPF
         private string _promptName = string.Empty;
         private string _displayName = string.Empty;
         private string _promptContent = string.Empty;
+        private bool _isEditMode = false;
+        private string? _originalPromptName = null;
+        private bool _isNameFieldEnabled = true;
         public string? CreatedPromptName { get; private set; }
 
         public NewPromptWindow(PromptManager promptManager)
@@ -20,6 +23,35 @@ namespace RPOverlay.WPF
             InitializeComponent();
             DataContext = this;
             _promptManager = promptManager ?? throw new ArgumentNullException(nameof(promptManager));
+            _isEditMode = false;
+            _isNameFieldEnabled = true;
+        }
+
+        public NewPromptWindow(PromptManager promptManager, PromptDefinition existingPrompt) : this(promptManager)
+        {
+            _isEditMode = true;
+            _originalPromptName = existingPrompt.Name;
+            PromptName = existingPrompt.DisplayName;
+            DisplayName = existingPrompt.DisplayName;
+            PromptContent = existingPrompt.Content;
+            Title = "Redigera Systemprompt";
+            
+            // Disable name editing for default prompt
+            if (existingPrompt.Name == "default")
+            {
+                IsNameFieldEnabled = false;
+            }
+        }
+
+        public bool IsNameFieldEnabled
+        {
+            get => _isNameFieldEnabled;
+            set
+            {
+                if (_isNameFieldEnabled == value) return;
+                _isNameFieldEnabled = value;
+                OnPropertyChanged();
+            }
         }
 
         public string PromptName
@@ -79,25 +111,39 @@ namespace RPOverlay.WPF
                 return;
             }
 
-            // Check if prompt already exists
-            var existing = _promptManager.LoadPrompt(PromptName);
-            if (existing != null)
+            // If editing default prompt, keep the original name
+            var promptInternalName = (_isEditMode && _originalPromptName == "default") 
+                ? "default" 
+                : PromptName.ToLower().Replace(" ", "_");
+            
+            // Check if prompt already exists (only if not in edit mode or if name changed)
+            if (!_isEditMode || (_isEditMode && promptInternalName != _originalPromptName))
             {
-                var result = System.Windows.MessageBox.Show(
-                    $"En prompt med namnet '{PromptName}' finns redan. Vill du skriva över den?",
-                    "Bekräfta överskrivning",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-                
-                if (result != MessageBoxResult.Yes)
-                    return;
+                var existing = _promptManager.LoadPrompt(promptInternalName);
+                if (existing != null)
+                {
+                    var result = System.Windows.MessageBox.Show(
+                        $"En prompt med namnet '{PromptName}' finns redan. Vill du skriva över den?",
+                        "Bekräfta överskrivning",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    
+                    if (result != MessageBoxResult.Yes)
+                        return;
+                }
             }
 
             try
             {
+                // If in edit mode and name changed (and not default), delete the old prompt
+                if (_isEditMode && _originalPromptName != null && _originalPromptName != "default" && promptInternalName != _originalPromptName)
+                {
+                    _promptManager.DeletePrompt(_originalPromptName);
+                }
+
                 var newPrompt = new PromptDefinition
                 {
-                    Name = PromptName.ToLower().Replace(" ", "_"),
+                    Name = promptInternalName,
                     DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? PromptName : DisplayName,
                     Description = string.Empty,
                     Content = PromptContent,

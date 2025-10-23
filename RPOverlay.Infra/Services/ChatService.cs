@@ -63,6 +63,14 @@ public class ChatService
         }
     }
     
+    /// <summary>
+    /// Completely clears all history including system message (for prompt changes).
+    /// </summary>
+    public void ClearAllHistory()
+    {
+        _conversationHistory.Clear();
+    }
+    
     public async IAsyncEnumerable<string> SendMessageStreamAsync(
         string userMessage,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)

@@ -157,6 +157,20 @@ namespace RPOverlay.WPF
             set
             {
                 if (_selectedPrompt == value) return;
+                
+                // Warn user if prompt is being changed and there's active chat
+                if (_selectedPrompt != null && value != null && _selectedPrompt.Name != value.Name)
+                {
+                    var result = MessageBox.Show(
+                        "Du håller på att byta systemprompten. Detta kommer att rensa chatthistoriken.\n\nVill du fortsätta?",
+                        "Byt systemprompten",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question);
+                    
+                    if (result != MessageBoxResult.Yes)
+                        return;
+                }
+                
                 _selectedPrompt = value;
                 OnPropertyChanged();
             }
@@ -445,6 +459,89 @@ namespace RPOverlay.WPF
                 if (newPrompt != null)
                 {
                     SelectedPrompt = newPrompt;
+                }
+            }
+        }
+
+        private void EditPromptButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedPrompt == null)
+            {
+                System.Windows.MessageBox.Show(
+                    "Välj en prompt att redigera.",
+                    "Ingen prompt vald",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var editPromptWindow = new NewPromptWindow(_promptManager, SelectedPrompt)
+            {
+                Owner = this
+            };
+
+            if (editPromptWindow.ShowDialog() == true)
+            {
+                // Reload available prompts
+                LoadAvailablePrompts();
+                
+                // Re-select the edited prompt
+                var editedPrompt = _availablePrompts.FirstOrDefault(p => p.Name == SelectedPrompt.Name);
+                if (editedPrompt != null)
+                {
+                    SelectedPrompt = editedPrompt;
+                }
+            }
+        }
+
+        private void DeletePromptButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedPrompt == null)
+            {
+                System.Windows.MessageBox.Show(
+                    "Välj en prompt att ta bort.",
+                    "Ingen prompt vald",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            // Don't allow deleting the default prompt
+            if (SelectedPrompt.Name == "default")
+            {
+                System.Windows.MessageBox.Show(
+                    "Standard-prompten kan inte tas bort.",
+                    "Kan inte ta bort",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            var result = System.Windows.MessageBox.Show(
+                $"Är du säker på att du vill ta bort prompten '{SelectedPrompt.DisplayName}'?",
+                "Bekräfta borttagning",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    _promptManager.DeletePrompt(SelectedPrompt.Name);
+                    
+                    // Reload available prompts
+                    LoadAvailablePrompts();
+                    
+                    // Select the default prompt
+                    SelectedPrompt = _availablePrompts.FirstOrDefault(p => p.Name == "default");
+                }
+                catch (Exception ex)
+                {
+                    System.Windows.MessageBox.Show(
+                        $"Fel vid borttagning av prompt: {ex.Message}",
+                        "Fel",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
                 }
             }
         }
