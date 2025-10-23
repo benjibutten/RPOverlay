@@ -1012,6 +1012,35 @@ namespace RPOverlay.WPF
             }), DispatcherPriority.Background);
         }
 
+        private void ClearChat_Click(object sender, RoutedEventArgs e)
+        {
+            var result = System.Windows.MessageBox.Show(
+                "Är du säker på att du vill starta om konversationen? Alla meddelanden kommer att raderas.",
+                "Bekräfta omstart av konversation",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                _chatMessages.Clear();
+                _chatService.ClearHistory();
+                
+                // Add initial welcome message
+                var initialMessage = _chatService.IsConfigured
+                    ? "Hej! Jag är din AI-assistent. Hur kan jag hjälpa dig?"
+                    : "⚠️ AI-chatten är inte konfigurerad. Kontrollera API-nyckeln i inställningar.";
+                
+                _chatMessages.Add(new ChatMessageViewModel
+                {
+                    IsUser = false,
+                    Content = initialMessage,
+                    FontSize = _noteFontSize
+                });
+                
+                ScrollChatToBottom();
+            }
+        }
+
         private void CloseTab_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not System.Windows.Controls.Button button || button.Tag is not TabItem tabItem)

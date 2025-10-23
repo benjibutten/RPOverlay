@@ -456,6 +456,7 @@
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
 
                                                     <TextBox x:Name="ChatInputBox"
@@ -473,8 +474,39 @@
                                                              KeyDown="ChatInput_KeyDown"
                                                              Text="{Binding ChatInputText, UpdateSourceTrigger=PropertyChanged}"/>
 
-                                                    <Button x:Name="SendButton"
+                                                    <Button x:Name="ClearChatButton"
                                                             Grid.Column="1"
+                                                            Click="ClearChat_Click"
+                                                            Width="40"
+                                                            Height="40"
+                                                            Margin="4,0,0,0"
+                                                            Cursor="Hand"
+                                                            ToolTip="Starta om konversation">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="ClearButtonBorder"
+                                                                        Background="#FFFF6B35"
+                                                                        CornerRadius="4"
+                                                                        BorderBrush="#FFFF5520"
+                                                                        BorderThickness="1">
+                                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                                      VerticalAlignment="Center"/>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="ClearButtonBorder" Property="Background" Value="#FFFF5520"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsPressed" Value="True">
+                                                                        <Setter TargetName="ClearButtonBorder" Property="Background" Value="#FFFF3D00"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                        <TextBlock Text="↻" FontSize="16" Foreground="White" VerticalAlignment="Center"/>
+                                                    </Button>
+
+                                                    <Button x:Name="SendButton"
+                                                            Grid.Column="2"
                                                             Click="SendChat_Click"
                                                             Width="40"
                                                             Height="40"
