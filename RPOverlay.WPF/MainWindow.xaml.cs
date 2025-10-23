@@ -1097,6 +1097,12 @@ namespace RPOverlay.WPF
                 VerticalAlignment = VerticalAlignment.Stretch,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
             };
+            
+            // Apply the custom scrollbar style
+            if (tabControl.Resources.Contains("CustomScrollBarStyle"))
+            {
+                textBox.Resources[typeof(System.Windows.Controls.Primitives.ScrollBar)] = tabControl.Resources["CustomScrollBarStyle"];
+            }
 
             grid.Children.Add(textBox);
 
