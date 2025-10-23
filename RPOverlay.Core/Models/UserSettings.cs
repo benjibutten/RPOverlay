@@ -16,7 +16,10 @@ public sealed class UserSettings
     
     // OpenAI Settings
     public string OpenAiApiKey { get; set; } = string.Empty;
-    public string SystemPrompt { get; set; } = "Du är en hjälpsam assistent för rollspel.";
+    /// <summary>
+    /// Name of the active prompt (filename without .yaml extension).
+    /// </summary>
+    public string ActivePromptName { get; set; } = "default";
 
     public static UserSettings CreateDefault() => new()
     {
@@ -30,6 +33,6 @@ public sealed class UserSettings
         WindowTop = -1,
         OpenTabs = new List<string> { "Anteckningar" },
         OpenAiApiKey = string.Empty,
-        SystemPrompt = "Du är en hjälpsam assistent för rollspel."
+        ActivePromptName = "default"
     };
 }

@@ -92,6 +92,7 @@ namespace RPOverlay.WPF
     {
         private readonly OverlayConfigService _configService;
         private readonly UserSettingsService _userSettingsService;
+        private readonly PromptManager _promptManager;
         private readonly ObservableCollection<OverlayButton> _buttons = new();
         private HwndSource? _hwndSource;
         private IntPtr _windowHandle;
@@ -151,6 +152,7 @@ namespace RPOverlay.WPF
                 var pathProvider = new AppDataOverlayConfigPathProvider();
                 _configService = new OverlayConfigService(pathProvider);
                 _userSettingsService = new UserSettingsService(pathProvider);
+                _promptManager = new PromptManager(pathProvider);
                 _configService.ConfigReloaded += OnConfigReloaded;
 
                 // Load user settings
@@ -263,8 +265,11 @@ namespace RPOverlay.WPF
                 
                 DebugLogger.Log($"Loaded user settings: Opacity={settings.Opacity}, FontSize={settings.FontSize}, Hotkey={settings.ToggleHotkey}, InteractivityToggle={settings.InteractivityToggle}, Position=({settings.WindowLeft},{settings.WindowTop})");
                 
-                // Configure ChatService with API key and system prompt
-                InitializeChatService(settings.OpenAiApiKey, settings.SystemPrompt);
+                // Ensure default prompt exists and migrate old system prompt if needed
+                _promptManager.EnsureDefaultPromptExists();
+                
+                // Configure ChatService with API key and active prompt
+                InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName);
             }
             catch (Exception ex)
             {
@@ -272,14 +277,23 @@ namespace RPOverlay.WPF
             }
         }
         
-        private void InitializeChatService(string apiKey, string systemPrompt)
+        private void InitializeChatService(string apiKey, string promptName)
         {
             try
             {
                 if (!string.IsNullOrWhiteSpace(apiKey))
                 {
-                    _chatService.Configure(apiKey, systemPrompt);
-                    DebugLogger.Log("ChatService configured successfully");
+                    // Load the prompt from disk
+                    var prompt = _promptManager.LoadPrompt(promptName);
+                    if (prompt == null)
+                    {
+                        DebugLogger.Log($"Warning: Prompt '{promptName}' not found, falling back to default");
+                        prompt = _promptManager.LoadPrompt("default");
+                    }
+                    
+                    var systemPromptContent = prompt?.Content ?? "Du är en hjälpsam assistent för rollspel.";
+                    _chatService.Configure(apiKey, systemPromptContent);
+                    DebugLogger.Log($"ChatService configured successfully with prompt: {prompt?.DisplayName}");
                 }
                 else
                 {
@@ -721,8 +735,8 @@ namespace RPOverlay.WPF
                 // Reload user settings after they've been saved
                 var settings = _userSettingsService.Load();
                 
-                // Reconfigure ChatService with potentially new API key and system prompt
-                InitializeChatService(settings.OpenAiApiKey, settings.SystemPrompt);
+                // Reconfigure ChatService with potentially new API key and prompt
+                InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName);
                 
                 DebugLogger.Log("Settings saved and ChatService reconfigured");
             }

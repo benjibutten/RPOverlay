@@ -267,32 +267,81 @@
                                          ToolTip="Din OpenAI API-nyckel (sparas i .ini fil)"/>
                         </Grid>
 
-                        <!-- System Prompt -->
+                        <!-- System Prompt Selection -->
                         <Grid Grid.Row="2" Margin="0,0,0,0">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             
                             <TextBlock Grid.Row="0"
-                                       Text="System Prompt:"
+                                       Text="Systemprompter:"
                                        Foreground="#FFB0B0B0"
                                        Margin="0,0,0,5"/>
                             
-                            <TextBox Grid.Row="1"
-                                     x:Name="SystemPromptTextBox"
-                                     Text="{Binding SystemPrompt, UpdateSourceTrigger=PropertyChanged}"
+                            <!-- Prompt ComboBox -->
+                            <Grid Grid.Row="1" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <ComboBox Grid.Column="0"
+                                          x:Name="PromptsComboBox"
+                                          ItemsSource="{Binding AvailablePrompts}"
+                                          SelectedItem="{Binding SelectedPrompt}"
+                                          DisplayMemberPath="DisplayName"
+                                          Background="#FF1C1C1C"
+                                          Foreground="White"
+                                          BorderBrush="#FF2F9DFF"
+                                          BorderThickness="1"
+                                          Padding="8"
+                                          VerticalAlignment="Center"
+                                          ToolTip="Välj en systemprompten">
+                                    <ComboBox.Resources>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="Background" Value="#FF1C1C1C"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </Style>
+                                    </ComboBox.Resources>
+                                </ComboBox>
+                                
+                                <Button Grid.Column="1"
+                                        x:Name="NewPromptButton"
+                                        Content="+ Ny"
+                                        Click="NewPromptButton_Click"
+                                        Background="#FF2F9DFF"
+                                        Foreground="White"
+                                        BorderThickness="0"
+                                        Padding="8,4"
+                                        Margin="10,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Cursor="Hand"
+                                        ToolTip="Skapa en ny systemprompten"/>
+                            </Grid>
+                            
+                            <!-- Prompt Preview -->
+                            <TextBlock Grid.Row="2"
+                                       Text="Förhandsgranskning:"
+                                       Foreground="#FFB0B0B0"
+                                       Margin="0,0,0,5"/>
+                            
+                            <TextBox Grid.Row="3"
+                                     Text="{Binding SelectedPrompt.Content, Mode=OneWay}"
                                      Background="#FF1C1C1C"
-                                     Foreground="White"
+                                     Foreground="#FF999999"
                                      BorderBrush="#FF2F9DFF"
                                      BorderThickness="1"
                                      Padding="8"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
                                      MinHeight="60"
-                                     MaxHeight="120"
+                                     MaxHeight="100"
                                      VerticalScrollBarVisibility="Auto"
-                                     ToolTip="Systemprompt som styr AI:ns beteende"/>
+                                     IsReadOnly="True"
+                                     ToolTip="Innehållet i den valda systemprompten"/>
                         </Grid>
                     </Grid>
                 </Border>

@@ -87,8 +87,13 @@ public sealed class UserSettingsService
                         case "OpenAiApiKey":
                             settings.OpenAiApiKey = value;
                             break;
+                        case "ActivePromptName":
+                            settings.ActivePromptName = value;
+                            break;
                         case "SystemPrompt":
-                            settings.SystemPrompt = value;
+                            // Legacy: migrate old SystemPrompt to ActivePromptName
+                            // The actual content will be migrated to default.yaml by MainWindow
+                            settings.ActivePromptName = "default";
                             break;
                     }
                 }
@@ -152,7 +157,7 @@ public sealed class UserSettingsService
             sb.AppendLine($"ToggleHotkey={settings.ToggleHotkey}");
             sb.AppendLine($"InteractivityToggle={settings.InteractivityToggle}");
             sb.AppendLine($"OpenAiApiKey={settings.OpenAiApiKey}");
-            sb.AppendLine($"SystemPrompt={settings.SystemPrompt}");
+            sb.AppendLine($"ActivePromptName={settings.ActivePromptName}");
             sb.AppendLine();
             
             sb.AppendLine("[Window]");

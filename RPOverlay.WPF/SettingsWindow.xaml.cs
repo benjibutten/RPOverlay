@@ -21,11 +21,13 @@ namespace RPOverlay.WPF
     {
         private readonly OverlayConfigService _configService;
         private readonly UserSettingsService _userSettingsService;
+        private readonly PromptManager _promptManager;
         private ObservableCollection<OverlayButton> _commands;
+        private ObservableCollection<PromptDefinition> _availablePrompts;
+        private PromptDefinition? _selectedPrompt;
         private double _windowOpacity;
         private string _toggleHotkey = "F9";
         private string _interactivityToggle = "XButton2";
-        private string _systemPrompt = "Du är en hjälpsam assistent för rollspel.";
 
         public SettingsWindow()
         {
@@ -35,6 +37,8 @@ namespace RPOverlay.WPF
             var pathProvider = new AppDataOverlayConfigPathProvider();
             _configService = new OverlayConfigService(pathProvider);
             _userSettingsService = new UserSettingsService(pathProvider);
+            _promptManager = new PromptManager(pathProvider);
+            _availablePrompts = new ObservableCollection<PromptDefinition>();
             
             // Load existing commands
             _commands = new ObservableCollection<OverlayButton>(
@@ -44,17 +48,45 @@ namespace RPOverlay.WPF
                     Text = b.Text 
                 }));
 
+            // Load available prompts
+            _promptManager.EnsureDefaultPromptExists();
+            LoadAvailablePrompts();
+
             // Load user settings
             var userSettings = _userSettingsService.Load();
             _windowOpacity = userSettings.Opacity;
             _toggleHotkey = userSettings.ToggleHotkey;
             _interactivityToggle = userSettings.InteractivityToggle;
-            _systemPrompt = userSettings.SystemPrompt;
+            
+            // Load the active prompt
+            var prompt = _promptManager.LoadPrompt(userSettings.ActivePromptName);
+            if (prompt != null)
+            {
+                _selectedPrompt = prompt;
+            }
+            else
+            {
+                _selectedPrompt = _availablePrompts.FirstOrDefault();
+            }
             
             // Set API key in PasswordBox (PasswordBox.Password can't be bound)
             if (!string.IsNullOrWhiteSpace(userSettings.OpenAiApiKey))
             {
                 ApiKeyPasswordBox.Password = userSettings.OpenAiApiKey;
+            }
+        }
+
+        private void LoadAvailablePrompts()
+        {
+            _availablePrompts.Clear();
+            var promptNames = _promptManager.ListPrompts();
+            foreach (var name in promptNames)
+            {
+                var prompt = _promptManager.LoadPrompt(name);
+                if (prompt != null)
+                {
+                    _availablePrompts.Add(prompt);
+                }
             }
         }
 
@@ -109,13 +141,23 @@ namespace RPOverlay.WPF
             }
         }
         
-        public string SystemPrompt
+        public ObservableCollection<PromptDefinition> AvailablePrompts
         {
-            get => _systemPrompt;
+            get => _availablePrompts;
             set
             {
-                if (_systemPrompt == value) return;
-                _systemPrompt = value;
+                _availablePrompts = value;
+                OnPropertyChanged();
+            }
+        }
+        
+        public PromptDefinition? SelectedPrompt
+        {
+            get => _selectedPrompt;
+            set
+            {
+                if (_selectedPrompt == value) return;
+                _selectedPrompt = value;
                 OnPropertyChanged();
             }
         }
@@ -205,7 +247,7 @@ namespace RPOverlay.WPF
                 userSettings.ToggleHotkey = ToggleHotkey;
                 userSettings.InteractivityToggle = InteractivityToggle;
                 userSettings.OpenAiApiKey = ApiKeyPasswordBox.Password;
-                userSettings.SystemPrompt = SystemPrompt;
+                userSettings.ActivePromptName = SelectedPrompt?.Name ?? "default";
                 _userSettingsService.Save(userSettings);
 
                 DialogResult = true;
@@ -384,6 +426,27 @@ namespace RPOverlay.WPF
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void NewPromptButton_Click(object sender, RoutedEventArgs e)
+        {
+            var newPromptWindow = new NewPromptWindow(_promptManager)
+            {
+                Owner = this
+            };
+
+            if (newPromptWindow.ShowDialog() == true)
+            {
+                // Reload available prompts
+                LoadAvailablePrompts();
+                
+                // Select the newly created prompt
+                var newPrompt = _availablePrompts.FirstOrDefault(p => p.Name == newPromptWindow.CreatedPromptName);
+                if (newPrompt != null)
+                {
+                    SelectedPrompt = newPrompt;
+                }
+            }
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
