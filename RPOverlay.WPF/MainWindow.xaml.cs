@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -21,6 +21,8 @@ using RPOverlay.Core.Providers;
 using RPOverlay.WPF.Interop;
 using RPOverlay.WPF.Logging;
 using RPOverlay.Infra.Services;
+using MessageDialogService = RPOverlay.WPF.Services.MessageDialogService;
+using MouseClickOverrideManager = RPOverlay.WPF.Utilities.MouseClickOverrideManager;
 
 namespace RPOverlay.WPF
 {
@@ -160,6 +162,7 @@ namespace RPOverlay.WPF
         private bool _overlayInteractive = true; // Track if overlay is interactive - start interactive
         private readonly DispatcherTimer _mouseCheckTimer;
         private int _interactivityToggleVK = NativeMethods.VK_XBUTTON2; // Virtual key code for interactivity toggle
+    private bool _useMiddleClickAsPrimary = false;
         
         // Chat-related fields
         private readonly ChatService _chatService = new();
@@ -294,6 +297,10 @@ namespace RPOverlay.WPF
                 
                 // Apply interactivity toggle
                 _interactivityToggleVK = ConvertInteractivityToggleToVK(settings.InteractivityToggle);
+
+                // Apply click interaction mode
+                _useMiddleClickAsPrimary = settings.UseMiddleClickAsPrimary;
+                MouseClickOverrideManager.SetMode(_useMiddleClickAsPrimary);
                 
                 // Apply window size
                 if (settings.WindowWidth > 0) Width = settings.WindowWidth;
@@ -357,7 +364,7 @@ namespace RPOverlay.WPF
             catch (Exception ex)
             {
                 DebugLogger.LogException(ex);
-                System.Windows.MessageBox.Show($"Fel vid konfiguration av AI-chatt: {ex.Message}", "ChatService Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageDialogService.Show($"Fel vid konfiguration av AI-chatt: {ex.Message}", "ChatService Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -754,7 +761,7 @@ namespace RPOverlay.WPF
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            var result = System.Windows.MessageBox.Show(
+            var result = MessageDialogService.Show(
                 "Är du säker på att du vill stänga applikationen?",
                 "Bekräfta stängning",
                 MessageBoxButton.YesNo,
@@ -792,6 +799,10 @@ namespace RPOverlay.WPF
                 
                 // Reconfigure ChatService with potentially new API key and prompt
                 InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName);
+
+                // Update click interaction mode in case it changed
+                _useMiddleClickAsPrimary = settings.UseMiddleClickAsPrimary;
+                MouseClickOverrideManager.SetMode(_useMiddleClickAsPrimary);
                 
                 DebugLogger.Log("Settings saved and ChatService reconfigured");
             }
@@ -1138,7 +1149,7 @@ namespace RPOverlay.WPF
 
         private void ClearChat_Click(object sender, RoutedEventArgs e)
         {
-            var result = System.Windows.MessageBox.Show(
+            var result = MessageDialogService.Show(
                 "Är du säker på att du vill starta om konversationen? Alla meddelanden kommer att raderas.",
                 "Bekräfta omstart av konversation",
                 MessageBoxButton.YesNo,
@@ -1178,7 +1189,7 @@ namespace RPOverlay.WPF
             // Don't allow closing the last tab
             if (tabControl.Items.Count <= 1)
             {
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     "Du måste ha minst en flik öppen.",
                     "Kan inte stänga flik",
                     MessageBoxButton.OK,
@@ -1208,7 +1219,7 @@ namespace RPOverlay.WPF
             
             if (string.IsNullOrEmpty(tabName)) return;
 
-            var result = System.Windows.MessageBox.Show(
+            var result = MessageDialogService.Show(
                 $"Är du säker på att du vill stänga fliken '{tabName}'? Innehållet kommer att sparas.",
                 "Bekräfta stängning",
                 MessageBoxButton.YesNo,
@@ -1231,7 +1242,7 @@ namespace RPOverlay.WPF
             }
         }
 
-        private void AddNoteTab(string tabName, string initialContent = "", bool isNewTab = false, bool isProtectedTab = false)
+        private void AddNoteTab(string tabName, string initialContent = "", bool isNewTab = false, bool isProtectedTab = false, string? noteId = null)
         {
             var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
             if (tabControl == null) return;
@@ -1396,15 +1407,17 @@ namespace RPOverlay.WPF
             textBox.GotFocus += NoteTextBox_GotFocus;
             textBox.LostFocus += NoteTextBox_LostFocus;
 
-            // Generate a unique GUID for the note file name
-            var noteId = Guid.NewGuid().ToString();
-            
+            // Reuse the provided note ID if available; otherwise generate a new one
+            var resolvedNoteId = string.IsNullOrWhiteSpace(noteId)
+                ? Guid.NewGuid().ToString()
+                : noteId;
+
             // Calculate sort order based on current tab count (for new tabs)
             var maxSortOrder = _noteTabs.Values.Any() ? _noteTabs.Values.Max(n => n.SortOrder) : -1;
-            
+
             var noteTab = new NoteTab 
             { 
-                Id = noteId,
+                Id = resolvedNoteId,
                 Name = tabName, // Keep for compatibility
                 DisplayName = tabName,
                 Content = initialContent,
@@ -1650,7 +1663,7 @@ namespace RPOverlay.WPF
                 if (targetWindow == IntPtr.Zero)
                 {
                     var targetApp = _debugMode ? "Notepad" : "FiveM";
-                    System.Windows.MessageBox.Show(
+                    MessageDialogService.Show(
                         $"Kunde inte hitta {targetApp}-fönstret. Se till att {targetApp} körs.",
                         $"{targetApp} ej funnet",
                         MessageBoxButton.OK,
@@ -1785,7 +1798,7 @@ namespace RPOverlay.WPF
                         if (!clipboardSet)
                         {
                             DebugLogger.Log("ERROR: Failed to set clipboard after 3 attempts");
-                            System.Windows.MessageBox.Show(
+                            MessageDialogService.Show(
                                 "Kunde inte kopiera texten till clipboard. Försök igen.",
                                 "Clipboard-fel",
                                 MessageBoxButton.OK,
@@ -1875,7 +1888,7 @@ namespace RPOverlay.WPF
             catch (Exception ex)
             {
                 DebugLogger.LogException(ex);
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     $"Ett fel uppstod: {ex.Message}",
                     "Fel",
                     MessageBoxButton.OK,
@@ -2215,7 +2228,7 @@ namespace RPOverlay.WPF
                     var note = _noteService.LoadNote(noteId);
                     if (note != null)
                     {
-                        AddNoteTab(note.Name, note.Content, false, isProtectedTab: false);
+                        AddNoteTab(note.Name, note.Content, isNewTab: false, isProtectedTab: false, noteId: note.Id);
                     }
                 }
             }

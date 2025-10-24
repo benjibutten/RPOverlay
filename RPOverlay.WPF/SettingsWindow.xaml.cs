@@ -9,8 +9,8 @@ using System.Windows.Input;
 using RPOverlay.Core.Models;
 using RPOverlay.Core.Services;
 using RPOverlay.Core.Providers;
-
-using MessageBox = System.Windows.MessageBox;
+using MessageDialogService = RPOverlay.WPF.Services.MessageDialogService;
+using MouseClickOverrideManager = RPOverlay.WPF.Utilities.MouseClickOverrideManager;
 using MessageBoxButton = System.Windows.MessageBoxButton;
 using MessageBoxImage = System.Windows.MessageBoxImage;
 using MessageBoxResult = System.Windows.MessageBoxResult;
@@ -28,10 +28,13 @@ namespace RPOverlay.WPF
         private double _windowOpacity;
         private string _toggleHotkey = "F9";
         private string _interactivityToggle = "XButton2";
+        private readonly bool _initialUseMiddleClick;
+        private bool _useMiddleClickAsPrimary;
 
         public SettingsWindow()
         {
             InitializeComponent();
+            MouseClickOverrideManager.Register(this);
             DataContext = this;
 
             var pathProvider = new AppDataOverlayConfigPathProvider();
@@ -57,6 +60,10 @@ namespace RPOverlay.WPF
             _windowOpacity = userSettings.Opacity;
             _toggleHotkey = userSettings.ToggleHotkey;
             _interactivityToggle = userSettings.InteractivityToggle;
+            _initialUseMiddleClick = userSettings.UseMiddleClickAsPrimary;
+            _useMiddleClickAsPrimary = _initialUseMiddleClick;
+            MouseClickOverrideManager.SetMode(_useMiddleClickAsPrimary);
+            OnPropertyChanged(nameof(UseMiddleClickAsPrimary));
             
             // Load the active prompt from the current collection so bindings select the correct item instance
             if (!string.IsNullOrWhiteSpace(userSettings.ActivePromptName))
@@ -141,6 +148,18 @@ namespace RPOverlay.WPF
                 OnPropertyChanged();
             }
         }
+
+        public bool UseMiddleClickAsPrimary
+        {
+            get => _useMiddleClickAsPrimary;
+            set
+            {
+                if (_useMiddleClickAsPrimary == value) return;
+                _useMiddleClickAsPrimary = value;
+                OnPropertyChanged();
+                MouseClickOverrideManager.SetMode(value);
+            }
+        }
         
         public ObservableCollection<PromptDefinition> AvailablePrompts
         {
@@ -162,7 +181,7 @@ namespace RPOverlay.WPF
                 // Warn user if prompt is being changed and there's active chat
                 if (_selectedPrompt != null && value != null && _selectedPrompt.Name != value.Name)
                 {
-                    var result = MessageBox.Show(
+                    var result = MessageDialogService.Show(
                         "Du håller på att byta systemprompten. Detta kommer att rensa chatthistoriken.\n\nVill du fortsätta?",
                         "Byt systemprompten",
                         MessageBoxButton.YesNo,
@@ -190,7 +209,7 @@ namespace RPOverlay.WPF
         {
             if (sender is System.Windows.Controls.Button button && button.Tag is OverlayButton command)
             {
-                var result = MessageBox.Show(
+                var result = MessageDialogService.Show(
                     $"Är du säker på att du vill ta bort '{command.Label}'?",
                     "Bekräfta borttagning",
                     MessageBoxButton.YesNo,
@@ -238,7 +257,7 @@ namespace RPOverlay.WPF
 
                 if (invalidCommands.Any())
                 {
-                    MessageBox.Show(
+                    MessageDialogService.Show(
                         "Alla kommandon måste ha både en etikett och text.",
                         "Valideringsfel",
                         MessageBoxButton.OK,
@@ -261,6 +280,7 @@ namespace RPOverlay.WPF
                 userSettings.Opacity = WindowOpacity;
                 userSettings.ToggleHotkey = ToggleHotkey;
                 userSettings.InteractivityToggle = InteractivityToggle;
+                userSettings.UseMiddleClickAsPrimary = UseMiddleClickAsPrimary;
                 userSettings.OpenAiApiKey = ApiKeyPasswordBox.Password;
                 userSettings.ActivePromptName = SelectedPrompt?.Name ?? "default";
                 _userSettingsService.Save(userSettings);
@@ -270,7 +290,7 @@ namespace RPOverlay.WPF
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                MessageDialogService.Show(
                     $"Ett fel uppstod vid sparning: {ex.Message}",
                     "Fel",
                     MessageBoxButton.OK,
@@ -468,7 +488,7 @@ namespace RPOverlay.WPF
         {
             if (SelectedPrompt == null)
             {
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     "Välj en prompt att redigera.",
                     "Ingen prompt vald",
                     MessageBoxButton.OK,
@@ -499,7 +519,7 @@ namespace RPOverlay.WPF
         {
             if (SelectedPrompt == null)
             {
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     "Välj en prompt att ta bort.",
                     "Ingen prompt vald",
                     MessageBoxButton.OK,
@@ -510,7 +530,7 @@ namespace RPOverlay.WPF
             // Don't allow deleting the default prompt
             if (SelectedPrompt.Name == "default")
             {
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     "Standard-prompten kan inte tas bort.",
                     "Kan inte ta bort",
                     MessageBoxButton.OK,
@@ -518,7 +538,7 @@ namespace RPOverlay.WPF
                 return;
             }
 
-            var result = System.Windows.MessageBox.Show(
+            var result = MessageDialogService.Show(
                 $"Är du säker på att du vill ta bort prompten '{SelectedPrompt.DisplayName}'?",
                 "Bekräfta borttagning",
                 MessageBoxButton.YesNo,
@@ -538,7 +558,7 @@ namespace RPOverlay.WPF
                 }
                 catch (Exception ex)
                 {
-                    System.Windows.MessageBox.Show(
+                    MessageDialogService.Show(
                         $"Fel vid borttagning av prompt: {ex.Message}",
                         "Fel",
                         MessageBoxButton.OK,
@@ -550,6 +570,16 @@ namespace RPOverlay.WPF
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            if (DialogResult != true)
+            {
+                MouseClickOverrideManager.SetMode(_initialUseMiddleClick);
+            }
+
+            base.OnClosed(e);
         }
     }
 }

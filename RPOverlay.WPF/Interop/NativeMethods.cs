@@ -32,12 +32,38 @@ namespace RPOverlay.WPF.Interop
         public const int WM_CHAR = 0x0102;
         public const int WM_KEYDOWN = 0x0100;
         public const int WM_KEYUP = 0x0101;
+    public const int WM_MOUSEMOVE = 0x0200;
+    public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_LBUTTONUP = 0x0202;
+    public const int WM_LBUTTONDBLCLK = 0x0203;
+    public const int WM_MBUTTONDOWN = 0x0207;
+    public const int WM_MBUTTONUP = 0x0208;
+    public const int WM_MBUTTONDBLCLK = 0x0209;
+    public const int WM_NCLBUTTONDOWN = 0x00A1;
+    public const int WM_NCLBUTTONUP = 0x00A2;
+    public const int WM_NCLBUTTONDBLCLK = 0x00A3;
+    public const int WM_NCMBUTTONDOWN = 0x00A7;
+    public const int WM_NCMBUTTONUP = 0x00A8;
+    public const int WM_NCMBUTTONDBLCLK = 0x00A9;
+
+    // Mouse key state flags
+    public const int MK_LBUTTON = 0x0001;
+    public const int MK_RBUTTON = 0x0002;
+    public const int MK_SHIFT = 0x0004;
+    public const int MK_CONTROL = 0x0008;
+    public const int MK_MBUTTON = 0x0010;
+    public const int MK_XBUTTON1 = 0x0020;
+    public const int MK_XBUTTON2 = 0x0040;
 
         // Input constants
+        public const uint INPUT_MOUSE = 0;
         public const uint INPUT_KEYBOARD = 1;
         public const uint KEYEVENTF_UNICODE = 0x0004;
         public const uint KEYEVENTF_KEYUP = 0x0002;
         public const uint KEYEVENTF_SCANCODE = 0x0008;
+        public const uint MOUSEEVENTF_MOVE = 0x0001;
+        public const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+        public const uint MOUSEEVENTF_LEFTUP = 0x0004;
         
         // Virtual key codes
         public const byte VK_T = 0x54;
@@ -127,6 +153,14 @@ namespace RPOverlay.WPF.Interop
         [DllImport("user32", CharSet = CharSet.Auto)]
         public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string? lpszClass, string? lpszWindow);
 
+        [DllImport("user32", CharSet = CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool PostMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ReleaseCapture();
+
         [DllImport("user32")]
         public static extern short GetAsyncKeyState(int vKey);
 
@@ -139,6 +173,17 @@ namespace RPOverlay.WPF.Interop
 
         // Virtual key code for right mouse button
         public const int VK_RBUTTON = 0x02;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct POINT
@@ -159,6 +204,8 @@ namespace RPOverlay.WPF.Interop
         {
             [FieldOffset(0)]
             public KEYBDINPUT ki;
+            [FieldOffset(0)]
+            public MOUSEINPUT mi;
         }
 
         [StructLayout(LayoutKind.Sequential)]

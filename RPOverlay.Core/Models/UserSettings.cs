@@ -8,6 +8,7 @@ public sealed class UserSettings
     public double Opacity { get; set; } = 0.8;
     public string ToggleHotkey { get; set; } = "F9";
     public string InteractivityToggle { get; set; } = "XButton2"; // Can be mouse button or key
+    public bool UseMiddleClickAsPrimary { get; set; } = false;
     public double WindowWidth { get; set; } = 320;
     public double WindowHeight { get; set; } = 600;
     public double WindowLeft { get; set; } = -1; // -1 means not set
@@ -27,6 +28,7 @@ public sealed class UserSettings
         Opacity = 0.8,
         ToggleHotkey = "F9",
         InteractivityToggle = "XButton2",
+    UseMiddleClickAsPrimary = false,
         WindowWidth = 320,
         WindowHeight = 600,
         WindowLeft = -1,

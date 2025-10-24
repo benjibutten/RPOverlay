@@ -124,6 +124,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         
                         <TextBlock Grid.Row="0"
@@ -217,6 +218,27 @@
                                     Margin="10,0,0,0"
                                     Cursor="Hand"
                                     ToolTip="Klicka och tryck på tangenten eller musknappen du vill använda"/>
+                        </Grid>
+
+                        <!-- Middle Click Toggle -->
+                        <Grid Grid.Row="4" Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Mittenklicksläge:"
+                                       Foreground="#FFB0B0B0"
+                                       VerticalAlignment="Center"/>
+
+                            <CheckBox Grid.Column="1"
+                                      Content="Använd mittenklick i hela appen"
+                                      IsChecked="{Binding UseMiddleClickAsPrimary, Mode=TwoWay}"
+                                      Margin="10,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Foreground="White"
+                                      Cursor="Hand"/>
                         </Grid>
                     </Grid>
                 </Border>

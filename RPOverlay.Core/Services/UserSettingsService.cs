@@ -84,6 +84,10 @@ public sealed class UserSettingsService
                         case "ToggleMouseButton": // Legacy compatibility
                             settings.InteractivityToggle = value;
                             break;
+                        case "UseMiddleClickAsPrimary":
+                            if (bool.TryParse(value, out var useMiddleClick))
+                                settings.UseMiddleClickAsPrimary = useMiddleClick;
+                            break;
                         case "OpenAiApiKey":
                             settings.OpenAiApiKey = value;
                             break;
@@ -156,6 +160,7 @@ public sealed class UserSettingsService
             sb.AppendLine($"Opacity={settings.Opacity.ToString(CultureInfo.InvariantCulture)}");
             sb.AppendLine($"ToggleHotkey={settings.ToggleHotkey}");
             sb.AppendLine($"InteractivityToggle={settings.InteractivityToggle}");
+            sb.AppendLine($"UseMiddleClickAsPrimary={settings.UseMiddleClickAsPrimary}");
             sb.AppendLine($"OpenAiApiKey={settings.OpenAiApiKey}");
             sb.AppendLine($"ActivePromptName={settings.ActivePromptName}");
             sb.AppendLine();

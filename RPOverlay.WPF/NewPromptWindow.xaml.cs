@@ -4,6 +4,8 @@ using System.Runtime.CompilerServices;
 using System.Windows;
 using RPOverlay.Core.Models;
 using RPOverlay.Core.Services;
+using MessageDialogService = RPOverlay.WPF.Services.MessageDialogService;
+using MouseClickOverrideManager = RPOverlay.WPF.Utilities.MouseClickOverrideManager;
 
 namespace RPOverlay.WPF
 {
@@ -21,6 +23,7 @@ namespace RPOverlay.WPF
         public NewPromptWindow(PromptManager promptManager)
         {
             InitializeComponent();
+            MouseClickOverrideManager.Register(this);
             DataContext = this;
             _promptManager = promptManager ?? throw new ArgumentNullException(nameof(promptManager));
             _isEditMode = false;
@@ -93,7 +96,7 @@ namespace RPOverlay.WPF
         {
             if (string.IsNullOrWhiteSpace(PromptName))
             {
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     "Du måste ange ett namn för prompten.",
                     "Valideringsfel",
                     MessageBoxButton.OK,
@@ -103,7 +106,7 @@ namespace RPOverlay.WPF
 
             if (string.IsNullOrWhiteSpace(PromptContent))
             {
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     "Du måste ange innehållet för prompten.",
                     "Valideringsfel",
                     MessageBoxButton.OK,
@@ -122,7 +125,7 @@ namespace RPOverlay.WPF
                 var existing = _promptManager.LoadPrompt(promptInternalName);
                 if (existing != null)
                 {
-                    var result = System.Windows.MessageBox.Show(
+                    var result = MessageDialogService.Show(
                         $"En prompt med namnet '{PromptName}' finns redan. Vill du skriva över den?",
                         "Bekräfta överskrivning",
                         MessageBoxButton.YesNo,
@@ -159,7 +162,7 @@ namespace RPOverlay.WPF
                 }
                 else
                 {
-                    System.Windows.MessageBox.Show(
+                    MessageDialogService.Show(
                         "Ett fel uppstod när prompten skulle sparas.",
                         "Fel",
                         MessageBoxButton.OK,
@@ -168,7 +171,7 @@ namespace RPOverlay.WPF
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show(
+                MessageDialogService.Show(
                     $"Ett fel uppstod: {ex.Message}",
                     "Fel",
                     MessageBoxButton.OK,
