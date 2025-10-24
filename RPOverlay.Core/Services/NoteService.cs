@@ -203,7 +203,8 @@ public sealed class NoteService
                     Content = content,
                     CreatedDate = File.GetCreationTime(txtFile),
                     LastModifiedDate = File.GetLastWriteTime(txtFile),
-                    HasCustomName = false // Assume old notes used first line for name
+                    HasCustomName = false, // Assume old notes used first line for name
+                    ExcludeFromContext = false
                 };
 
                 if (SaveNote(note))
@@ -262,6 +263,11 @@ public sealed class NoteService
             {
                 var boolStr = ExtractYamlValue(trimmed, "has_custom_name");
                 note.HasCustomName = bool.TryParse(boolStr, out var hasCustomName) && hasCustomName;
+            }
+            else if (trimmed.StartsWith("exclude_from_context:"))
+            {
+                var boolStr = ExtractYamlValue(trimmed, "exclude_from_context");
+                note.ExcludeFromContext = bool.TryParse(boolStr, out var exclude) && exclude;
             }
             else if (trimmed.StartsWith("sort_order:"))
             {
@@ -337,6 +343,7 @@ public sealed class NoteService
         sb.AppendLine($"created_date: {quote(note.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss"))}");
         sb.AppendLine($"last_modified_date: {quote(note.LastModifiedDate.ToString("yyyy-MM-dd HH:mm:ss"))}");
         sb.AppendLine($"has_custom_name: {note.HasCustomName.ToString().ToLower()}");
+    sb.AppendLine($"exclude_from_context: {note.ExcludeFromContext.ToString().ToLower()}");
         sb.AppendLine($"sort_order: {note.SortOrder}");
         sb.AppendLine();
         sb.AppendLine("content: |");

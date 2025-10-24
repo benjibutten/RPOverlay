@@ -14,6 +14,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using System.IO;
 using System.Text.Json;
+using System.Text;
 using RPOverlay.Core.Models;
 using RPOverlay.Core.Services;
 using RPOverlay.Core.Utilities;
@@ -30,6 +31,7 @@ namespace RPOverlay.WPF
     {
         private string _content = string.Empty;
         private string _displayName = string.Empty;
+        private bool _isContextExcluded;
         
         /// <summary>
         /// The unique ID of the note (used for file name).
@@ -51,6 +53,20 @@ namespace RPOverlay.WPF
             {
                 if (_displayName == value) return;
                 _displayName = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// True if this note should be excluded from chat context sharing.
+        /// </summary>
+        public bool IsContextExcluded
+        {
+            get => _isContextExcluded;
+            set
+            {
+                if (_isContextExcluded == value) return;
+                _isContextExcluded = value;
                 OnPropertyChanged();
             }
         }
@@ -179,6 +195,21 @@ namespace RPOverlay.WPF
         private bool _isClosingChatFromTabClick = false; // Flag to indicate chat is being closed due to a tab click (not manual close)
         private DispatcherTimer? _loadingAnimationTimer;
         private int _loadingDotCount = 0;
+        private bool _isTabContextEnabled;
+        private bool _hasSentInitialContext;
+        private readonly Dictionary<string, string> _lastSentContextByNoteId = new();
+
+        private static readonly string ContextSystemPromptAppendix = string.Join(Environment.NewLine, new[]
+        {
+            "[Intern instruktion – brukas av assistenten, inte användaren]",
+            "Applikationen injicerar extra block i användarmeddelanden för att dela anteckningsflikar.",
+            "<Kontext> innehåller en fullständig ögonblicksbild av alla inkluderade flikar och ersätter tidigare kontext.",
+            "<KontextAddon> innehåller endast ny text eller nya flikar sedan föregående meddelande. Saknas block betyder att ingen ny kontext har tillkommit.",
+            "Varje block består av sektioner som inleds med [Flik: Namn], eventuellt följt av '(Ny flik)', och sektionerna separeras med '---'.",
+            "En tom <Kontext> betyder att kontexten har rensats. Använd alltid den senaste informationen från dessa block i dina svar.",
+            "Syftet med detta är att ge dig (assistenten) relevant information från användarens anteckningar för att förbättra dina svar och hjälpa till med rollspelsrelaterade frågor.",
+            "Du behöver inte alltid använda informationen i anteckningarna, endast när det är relevant för användarens fråga.",
+        });
 
         public MainWindow()
         {
@@ -330,7 +361,8 @@ namespace RPOverlay.WPF
                 _promptManager.EnsureDefaultPromptExists();
                 
                 // Configure ChatService with API key and active prompt
-                InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName);
+                _isTabContextEnabled = settings.EnableTabContext;
+                InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName, settings.EnableTabContext);
             }
             catch (Exception ex)
             {
@@ -338,10 +370,13 @@ namespace RPOverlay.WPF
             }
         }
         
-        private void InitializeChatService(string apiKey, string promptName)
+        private void InitializeChatService(string apiKey, string promptName, bool enableTabContext)
         {
             try
             {
+                _isTabContextEnabled = enableTabContext;
+                ResetContextTracking();
+
                 if (!string.IsNullOrWhiteSpace(apiKey))
                 {
                     // Load the prompt from disk
@@ -353,11 +388,17 @@ namespace RPOverlay.WPF
                     }
                     
                     var systemPromptContent = prompt?.Content ?? "Du är en hjälpsam assistent för rollspel.";
+                    if (enableTabContext)
+                    {
+                        systemPromptContent = BuildContextAwareSystemPrompt(systemPromptContent);
+                    }
+
                     _chatService.Configure(apiKey, systemPromptContent);
-                    DebugLogger.Log($"ChatService configured successfully with prompt: {prompt?.DisplayName}");
+                    DebugLogger.Log($"ChatService configured successfully med prompt: {prompt?.DisplayName ?? promptName} (tabbkontext {(enableTabContext ? "på" : "av")})");
                 }
                 else
                 {
+                    _chatService.Configure(string.Empty, null);
                     DebugLogger.Log("ChatService not configured - no API key provided");
                 }
             }
@@ -798,7 +839,7 @@ namespace RPOverlay.WPF
                 }
                 
                 // Reconfigure ChatService with potentially new API key and prompt
-                InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName);
+                InitializeChatService(settings.OpenAiApiKey, settings.ActivePromptName, settings.EnableTabContext);
 
                 // Update click interaction mode in case it changed
                 _useMiddleClickAsPrimary = settings.UseMiddleClickAsPrimary;
@@ -1064,6 +1105,10 @@ namespace RPOverlay.WPF
             _loadingDotCount = 0;
             StartLoadingAnimation(assistantMsgViewModel);
             
+            var contextResult = PrepareContextForMessage(userMessage);
+            var messageForService = contextResult.FinalMessage;
+            var messageDelivered = false;
+
             try
             {
                 // Cancel any existing operation
@@ -1071,7 +1116,7 @@ namespace RPOverlay.WPF
                 _chatCancellationTokenSource = new CancellationTokenSource();
                 
                 // Stream response
-                await foreach (var chunk in _chatService.SendMessageStreamAsync(userMessage, _chatCancellationTokenSource.Token))
+                await foreach (var chunk in _chatService.SendMessageStreamAsync(messageForService, _chatCancellationTokenSource.Token))
                 {
                     // Stop loading animation and clear placeholder on first chunk
                     if (string.IsNullOrEmpty(assistantMsgViewModel.Content) || 
@@ -1086,6 +1131,7 @@ namespace RPOverlay.WPF
                     // Scroll to bottom periodically
                     ScrollChatToBottom();
                 }
+                messageDelivered = true;
             }
             catch (OperationCanceledException)
             {
@@ -1104,6 +1150,10 @@ namespace RPOverlay.WPF
                 _isSendingMessage = false;
                 OnPropertyChanged(nameof(CanSendMessage));
                 ScrollChatToBottom();
+                if (messageDelivered)
+                {
+                    ApplyContextResult(contextResult);
+                }
             }
         }
         
@@ -1118,6 +1168,312 @@ namespace RPOverlay.WPF
 
                 _chatScrollViewer?.ScrollToBottom();
             }), DispatcherPriority.Background);
+        }
+
+        private sealed class ContextBuildResult
+        {
+            public string FinalMessage { get; set; } = string.Empty;
+            public bool SentContextBlock { get; set; }
+            public bool ResetSnapshots { get; set; }
+            public bool MarkInitialAsSent { get; set; }
+            public Dictionary<string, string> UpdatedSnapshots { get; } = new();
+        }
+
+        private void ResetContextTracking()
+        {
+            _hasSentInitialContext = false;
+            _lastSentContextByNoteId.Clear();
+        }
+
+        private string BuildContextAwareSystemPrompt(string basePrompt)
+        {
+            var trimmed = string.IsNullOrWhiteSpace(basePrompt)
+                ? "Du är en hjälpsam assistent för rollspel."
+                : basePrompt.Trim();
+
+            return string.Join(Environment.NewLine + Environment.NewLine, new[]
+            {
+                trimmed,
+                ContextSystemPromptAppendix
+            });
+        }
+
+        private ContextBuildResult PrepareContextForMessage(string userMessage)
+        {
+            var result = new ContextBuildResult { FinalMessage = userMessage };
+
+            if (!_isTabContextEnabled)
+            {
+                return result;
+            }
+
+            var includedNotes = _noteTabs.Values
+                .Where(n => !n.IsContextExcluded && !string.IsNullOrWhiteSpace(n.Content))
+                .OrderBy(n => n.SortOrder)
+                .ThenBy(n => n.CreatedDate)
+                .ToList();
+
+            var includedIds = new HashSet<string>(includedNotes.Select(n => n.Id));
+            var needsReset = !_hasSentInitialContext;
+
+            if (!needsReset)
+            {
+                foreach (var previousId in _lastSentContextByNoteId.Keys)
+                {
+                    if (!includedIds.Contains(previousId))
+                    {
+                        needsReset = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!needsReset)
+            {
+                foreach (var note in includedNotes)
+                {
+                    if (_lastSentContextByNoteId.TryGetValue(note.Id, out var previous))
+                    {
+                        var current = note.Content;
+                        if (previous.Length > current.Length ||
+                            !current.StartsWith(previous, StringComparison.Ordinal))
+                        {
+                            needsReset = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (needsReset)
+            {
+                var hadPreviousContext = _hasSentInitialContext && _lastSentContextByNoteId.Count > 0;
+                if (includedNotes.Count == 0 && !hadPreviousContext)
+                {
+                    return result;
+                }
+
+                return BuildInitialContextResult(userMessage, includedNotes, hadPreviousContext);
+            }
+
+            return BuildIncrementalContextResult(userMessage, includedNotes);
+        }
+
+        private ContextBuildResult BuildInitialContextResult(string userMessage, List<NoteTab> includedNotes, bool hadPreviousContext)
+        {
+            var result = new ContextBuildResult
+            {
+                FinalMessage = userMessage,
+                ResetSnapshots = true,
+                MarkInitialAsSent = includedNotes.Count > 0
+            };
+
+            string contextBody;
+
+            if (includedNotes.Count == 0)
+            {
+                contextBody = "Kontexten har rensats.";
+            }
+            else
+            {
+                foreach (var note in includedNotes)
+                {
+                    result.UpdatedSnapshots[note.Id] = note.Content;
+                }
+
+                var sections = includedNotes
+                    .Select(note => BuildNoteSectionText(note, note.Content))
+                    .Where(section => !string.IsNullOrWhiteSpace(section))
+                    .ToList();
+
+                contextBody = BuildNotesPayload(sections);
+
+                if (string.IsNullOrWhiteSpace(contextBody))
+                {
+                    result.MarkInitialAsSent = false;
+                    contextBody = hadPreviousContext ? "Kontexten har rensats." : string.Empty;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(contextBody))
+            {
+                return result;
+            }
+
+            result.SentContextBlock = true;
+            result.FinalMessage = ComposeFinalMessage(userMessage, BuildContextBlock("Kontext", contextBody));
+            return result;
+        }
+
+        private ContextBuildResult BuildIncrementalContextResult(string userMessage, List<NoteTab> includedNotes)
+        {
+            var result = new ContextBuildResult { FinalMessage = userMessage };
+            var sections = new List<string>();
+
+            foreach (var note in includedNotes)
+            {
+                var current = note.Content;
+
+                if (!_lastSentContextByNoteId.TryGetValue(note.Id, out var previous) || string.IsNullOrEmpty(previous))
+                {
+                    var section = BuildNoteSectionText(note, current, markAsNew: true);
+                    if (!string.IsNullOrWhiteSpace(section))
+                    {
+                        sections.Add(section);
+                        result.UpdatedSnapshots[note.Id] = current;
+                    }
+                    continue;
+                }
+
+                if (string.Equals(current, previous, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (current.Length >= previous.Length && current.StartsWith(previous, StringComparison.Ordinal))
+                {
+                    var delta = current.Substring(previous.Length).TrimStart('\r', '\n');
+                    if (string.IsNullOrWhiteSpace(delta))
+                    {
+                        result.UpdatedSnapshots[note.Id] = current;
+                        continue;
+                    }
+
+                    var section = BuildNoteSectionText(note, delta);
+                    if (!string.IsNullOrWhiteSpace(section))
+                    {
+                        sections.Add(section);
+                        result.UpdatedSnapshots[note.Id] = current;
+                    }
+                    continue;
+                }
+
+                return BuildInitialContextResult(userMessage, includedNotes, _hasSentInitialContext || _lastSentContextByNoteId.Count > 0);
+            }
+
+            if (sections.Count == 0)
+            {
+                return result;
+            }
+
+            var contextBody = BuildNotesPayload(sections);
+            if (string.IsNullOrWhiteSpace(contextBody))
+            {
+                return result;
+            }
+
+            result.SentContextBlock = true;
+            result.FinalMessage = ComposeFinalMessage(userMessage, BuildContextBlock("KontextAddon", contextBody));
+            return result;
+        }
+
+        private static string BuildNoteSectionText(NoteTab note, string content, bool markAsNew = false)
+        {
+            var sb = new StringBuilder();
+            sb.Append("[Flik: ").Append(note.DisplayName).Append(']').AppendLine();
+            if (markAsNew)
+            {
+                sb.AppendLine("(Ny flik)");
+            }
+
+            var sanitized = (content ?? string.Empty)
+                .ReplaceLineEndings(Environment.NewLine)
+                .TrimEnd();
+
+            if (!string.IsNullOrWhiteSpace(sanitized))
+            {
+                AppendContent(sb, sanitized);
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        private static void AppendContent(StringBuilder sb, string content)
+        {
+            var lines = content.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                sb.Append(lines[i]);
+                if (i < lines.Length - 1)
+                {
+                    sb.AppendLine();
+                }
+            }
+        }
+
+        private static string BuildNotesPayload(IReadOnlyList<string> sections)
+        {
+            if (sections.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            return string.Join(Environment.NewLine + "---" + Environment.NewLine, sections);
+        }
+
+        private static string BuildContextBlock(string tagName, string content)
+        {
+            var trimmed = content.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return $"<{tagName}></{tagName}>";
+            }
+
+            return $"<{tagName}>{Environment.NewLine}{trimmed}{Environment.NewLine}</{tagName}>";
+        }
+
+        private static string ComposeFinalMessage(string userMessage, string contextBlock)
+        {
+            if (string.IsNullOrWhiteSpace(contextBlock))
+            {
+                return userMessage;
+            }
+
+            if (string.IsNullOrEmpty(userMessage))
+            {
+                return contextBlock;
+            }
+
+            return $"{userMessage}{Environment.NewLine}{Environment.NewLine}{contextBlock}";
+        }
+
+        private void ApplyContextResult(ContextBuildResult result)
+        {
+            if (!_isTabContextEnabled)
+            {
+                return;
+            }
+
+            if (!result.SentContextBlock && result.UpdatedSnapshots.Count == 0 && !result.ResetSnapshots)
+            {
+                return;
+            }
+
+            if (result.ResetSnapshots)
+            {
+                _lastSentContextByNoteId.Clear();
+            }
+
+            foreach (var kvp in result.UpdatedSnapshots)
+            {
+                if (string.IsNullOrEmpty(kvp.Value))
+                {
+                    _lastSentContextByNoteId.Remove(kvp.Key);
+                }
+                else
+                {
+                    _lastSentContextByNoteId[kvp.Key] = kvp.Value;
+                }
+            }
+
+            if (result.MarkInitialAsSent)
+            {
+                _hasSentInitialContext = true;
+            }
+            else if (result.ResetSnapshots)
+            {
+                _hasSentInitialContext = false;
+            }
         }
 
         private void StartLoadingAnimation(ChatMessageViewModel loadingMessage)
@@ -1159,6 +1515,7 @@ namespace RPOverlay.WPF
             {
                 _chatMessages.Clear();
                 _chatService.ClearHistory();
+                ResetContextTracking();
                 
                 // Lägg till välkomstmeddelandet igen
                 var initialMessage = _chatService.IsConfigured
@@ -1204,7 +1561,7 @@ namespace RPOverlay.WPF
             {
                 foreach (var child in headerGrid.Children)
                 {
-                    if (child is TextBlock textBlock)
+                    if (child is TextBlock textBlock && Equals(textBlock.Tag, "DisplayText"))
                     {
                         tabName = textBlock.Text;
                         break;
@@ -1267,7 +1624,8 @@ namespace RPOverlay.WPF
                 Text = tabName,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = System.Windows.Media.Brushes.White,
-                Visibility = Visibility.Visible
+                Visibility = Visibility.Visible,
+                Tag = "DisplayText"
             };
             
             var editTextBox = new System.Windows.Controls.TextBox
@@ -1287,8 +1645,26 @@ namespace RPOverlay.WPF
             
             headerGrid.Children.Add(displayTextBlock);
             headerGrid.Children.Add(editTextBox);
+            var contextIndicator = new System.Windows.Shapes.Ellipse
+            {
+                Width = 6,
+                Height = 6,
+                Fill = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 99, 71)),
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, -2, -2, 0),
+                Visibility = Visibility.Collapsed,
+                IsHitTestVisible = false
+            };
+            System.Windows.Controls.Panel.SetZIndex(contextIndicator, 1);
+            headerGrid.Children.Add(contextIndicator);
             
             tab.Header = headerGrid;
+
+            var toggleContextMenuItem = new MenuItem();
+            var tabContextMenu = new ContextMenu();
+            tabContextMenu.Items.Add(toggleContextMenuItem);
+            tab.ContextMenu = tabContextMenu;
 
             // Double-click to edit name
             displayTextBlock.MouseLeftButtonDown += (s, e) =>
@@ -1427,6 +1803,7 @@ namespace RPOverlay.WPF
                 SortOrder = maxSortOrder + 1
             };
             _noteTabs[tabName] = noteTab;
+            tab.Tag = noteTab;
 
             // Load saved content if exists (unless it's a brand new tab)
             if (!isNewTab)
@@ -1437,6 +1814,29 @@ namespace RPOverlay.WPF
                 editTextBox.Text = noteTab.DisplayName;
             }
             textBox.Text = noteTab.Content;
+
+            void UpdateContextUi()
+            {
+                toggleContextMenuItem.Header = noteTab.IsContextExcluded
+                    ? "Inkludera i kontext"
+                    : "Exkludera från kontext";
+                contextIndicator.Visibility = noteTab.IsContextExcluded
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+
+            toggleContextMenuItem.Click += (s, e) =>
+            {
+                noteTab.IsContextExcluded = !noteTab.IsContextExcluded;
+                UpdateContextUi();
+                SaveNoteContent(noteTab);
+                if (_isTabContextEnabled)
+                {
+                    ResetContextTracking();
+                }
+            };
+
+            UpdateContextUi();
 
             // Bind textbox to note content and update tab name based on first line (only if not has custom name and not protected)
             textBox.TextChanged += (s, e) =>
@@ -1560,7 +1960,7 @@ namespace RPOverlay.WPF
                     // Find the note tab by display name
                     foreach (var child in headerGrid.Children)
                     {
-                        if (child is TextBlock textBlock)
+                        if (child is TextBlock textBlock && Equals(textBlock.Tag, "DisplayText"))
                         {
                             var tabName = textBlock.Text;
                             foreach (var noteTab in _noteTabs.Values)
@@ -2267,6 +2667,7 @@ namespace RPOverlay.WPF
                     noteTab.CreatedDate = note.CreatedDate;
                     noteTab.LastModifiedDate = note.LastModifiedDate;
                     noteTab.SortOrder = note.SortOrder;
+                    noteTab.IsContextExcluded = note.ExcludeFromContext;
                 }
             }
             catch (Exception ex)
@@ -2287,7 +2688,8 @@ namespace RPOverlay.WPF
                     CreatedDate = noteTab.CreatedDate,
                     LastModifiedDate = DateTime.Now,
                     HasCustomName = noteTab.HasCustomName,
-                    SortOrder = noteTab.SortOrder
+                    SortOrder = noteTab.SortOrder,
+                    ExcludeFromContext = noteTab.IsContextExcluded
                 };
                 _noteService.SaveNote(note);
             }

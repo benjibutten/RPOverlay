@@ -39,4 +39,9 @@ public class Note
     /// Sort order for display (lower numbers appear first).
     /// </summary>
     public int SortOrder { get; set; } = 0;
+
+    /// <summary>
+    /// If true, the note is excluded from chat context sharing.
+    /// </summary>
+    public bool ExcludeFromContext { get; set; } = false;
 }

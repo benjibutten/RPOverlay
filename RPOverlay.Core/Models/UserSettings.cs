@@ -22,6 +22,11 @@ public sealed class UserSettings
     /// </summary>
     public string ActivePromptName { get; set; } = "default";
 
+    /// <summary>
+    /// Enables appending note tab context to chat messages.
+    /// </summary>
+    public bool EnableTabContext { get; set; } = false;
+
     public static UserSettings CreateDefault() => new()
     {
         FontSize = 16.0,
@@ -35,6 +40,7 @@ public sealed class UserSettings
         WindowTop = -1,
         OpenTabs = new List<string> { "Anteckningar" },
         OpenAiApiKey = string.Empty,
-        ActivePromptName = "default"
+        ActivePromptName = "default",
+        EnableTabContext = false
     };
 }

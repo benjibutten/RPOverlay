@@ -94,6 +94,10 @@ public sealed class UserSettingsService
                         case "ActivePromptName":
                             settings.ActivePromptName = value;
                             break;
+                        case "EnableTabContext":
+                            if (bool.TryParse(value, out var enableContext))
+                                settings.EnableTabContext = enableContext;
+                            break;
                         case "SystemPrompt":
                             // Legacy: migrate old SystemPrompt to ActivePromptName
                             // The actual content will be migrated to default.yaml by MainWindow
@@ -163,6 +167,7 @@ public sealed class UserSettingsService
             sb.AppendLine($"UseMiddleClickAsPrimary={settings.UseMiddleClickAsPrimary}");
             sb.AppendLine($"OpenAiApiKey={settings.OpenAiApiKey}");
             sb.AppendLine($"ActivePromptName={settings.ActivePromptName}");
+            sb.AppendLine($"EnableTabContext={settings.EnableTabContext}");
             sb.AppendLine();
             
             sb.AppendLine("[Window]");

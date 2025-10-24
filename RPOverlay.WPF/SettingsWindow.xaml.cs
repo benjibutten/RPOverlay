@@ -30,6 +30,7 @@ namespace RPOverlay.WPF
         private string _interactivityToggle = "XButton2";
         private readonly bool _initialUseMiddleClick;
         private bool _useMiddleClickAsPrimary;
+        private bool _includeTabContext;
 
         public SettingsWindow()
         {
@@ -64,6 +65,7 @@ namespace RPOverlay.WPF
             _useMiddleClickAsPrimary = _initialUseMiddleClick;
             MouseClickOverrideManager.SetMode(_useMiddleClickAsPrimary);
             OnPropertyChanged(nameof(UseMiddleClickAsPrimary));
+            IncludeTabContext = userSettings.EnableTabContext;
             
             // Load the active prompt from the current collection so bindings select the correct item instance
             if (!string.IsNullOrWhiteSpace(userSettings.ActivePromptName))
@@ -158,6 +160,17 @@ namespace RPOverlay.WPF
                 _useMiddleClickAsPrimary = value;
                 OnPropertyChanged();
                 MouseClickOverrideManager.SetMode(value);
+            }
+        }
+
+        public bool IncludeTabContext
+        {
+            get => _includeTabContext;
+            set
+            {
+                if (_includeTabContext == value) return;
+                _includeTabContext = value;
+                OnPropertyChanged();
             }
         }
         
@@ -283,6 +296,7 @@ namespace RPOverlay.WPF
                 userSettings.UseMiddleClickAsPrimary = UseMiddleClickAsPrimary;
                 userSettings.OpenAiApiKey = ApiKeyPasswordBox.Password;
                 userSettings.ActivePromptName = SelectedPrompt?.Name ?? "default";
+                userSettings.EnableTabContext = IncludeTabContext;
                 _userSettingsService.Save(userSettings);
 
                 DialogResult = true;

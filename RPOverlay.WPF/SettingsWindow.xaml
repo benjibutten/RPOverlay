@@ -256,6 +256,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         
                         <TextBlock Grid.Row="0"
@@ -290,7 +291,7 @@
                         </Grid>
 
                         <!-- System Prompt Selection -->
-                        <Grid Grid.Row="2" Margin="0,0,0,0">
+                        <Grid Grid.Row="2" Margin="0,0,0,10">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -505,6 +506,13 @@
                                      IsEnabled="False"
                                      ToolTip="Innehållet i den valda systemprompten"/>
                         </Grid>
+
+                        <CheckBox Grid.Row="3"
+                                  Content="Inkludera anteckningsflikar som kontext i chatten"
+                                  IsChecked="{Binding IncludeTabContext, Mode=TwoWay}"
+                                  Foreground="White"
+                                  Cursor="Hand"
+                                  Margin="0,0,0,0"/>
                     </Grid>
                 </Border>
 
