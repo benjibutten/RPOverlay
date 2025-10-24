@@ -54,37 +54,33 @@ jobs:
         Compress-Archive -Path ./publish/* -DestinationPath $zipName
         Write-Host "Created archive: $zipName"
         
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
+    - name: Create Release with GitHub CLI
+      shell: pwsh
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ github.event.inputs.version }}
-        release_name: RPOverlay v${{ github.event.inputs.version }}
-        body: |
-          ## RPOverlay v${{ github.event.inputs.version }}
-          
-          ### Installation
-          1. Ladda ner ZIP-filen nedan
-          2. Packa upp till valfri mapp
-          3. Kör `RPOverlay.WPF.exe`
-          
-          ### Systemkrav
-          - Windows 10/11 (x64)
-          - .NET 8.0 Runtime (ingår i self-contained versionen)
-          
-          ### Ändringar
-          Se [commits](https://github.com/${{ github.repository }}/commits/v${{ github.event.inputs.version }}) för detaljer.
-        draft: false
-        prerelease: false
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $version = "${{ github.event.inputs.version }}"
+        $zipName = "RPOverlay-v$version-win-x64.zip"
+        $tag = "v$version"
         
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./RPOverlay-v${{ github.event.inputs.version }}-win-x64.zip
-        asset_name: RPOverlay-v${{ github.event.inputs.version }}-win-x64.zip
-        asset_content_type: application/zip
+        # Create release notes
+        $releaseNotes = @"
+        ## RPOverlay v$version
+        
+        ### Installation
+        1. Ladda ner ZIP-filen nedan
+        2. Packa upp till valfri mapp
+        3. Kör ``RPOverlay.WPF.exe``
+        
+        ### Systemkrav
+        - Windows 10/11 (x64)
+        - .NET 8.0 Runtime (ingår i self-contained versionen)
+        
+        ### Ändringar
+        Se [commits](https://github.com/${{ github.repository }}/commits/$tag) för detaljer.
+        "@
+        
+        # Create release and upload asset
+        gh release create $tag $zipName `
+          --title "RPOverlay v$version" `
+          --notes $releaseNotes
