@@ -20,7 +20,7 @@ namespace RPOverlay.WPF
             {
                 Icon = IconHelper.CreateMedicalCrossIcon(),
                 Visible = true,
-                Text = $"The Path RP Overlay v{version}"
+                Text = $"RP Overlay v{version}"
             };
 
             // Create context menu

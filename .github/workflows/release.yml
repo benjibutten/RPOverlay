@@ -39,14 +39,15 @@ jobs:
         Set-Content $csprojPath $content
         Write-Host "Updated version to $version"
         
-    - name: Build self-contained application
+    - name: Build self-contained single-file application
       run: |
         dotnet publish RPOverlay.WPF\RPOverlay.WPF.csproj `
           --configuration Release `
           --runtime win-x64 `
           --self-contained true `
-          -p:PublishSingleFile=false `
-          -p:PublishTrimmed=false `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:EnableCompressionInSingleFile=true `
           --output ./publish
           
     - name: Create ZIP archive
@@ -71,9 +72,8 @@ jobs:
         ## RPOverlay v$version
         
         ### Installation
-        1. Ladda ner ZIP-filen nedan
-        2. Packa upp till valfri mapp
-        3. Kör ``RPOverlay.WPF.exe``
+        1. Ladda ner .exe-filen nedan
+        2. Kör `RPOverlay.WPF.exe`
         
         ### Systemkrav
         - Windows 10/11 (x64)

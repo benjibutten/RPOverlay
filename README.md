@@ -1,6 +1,6 @@
-# The Path RP Overlay
+# RPOverlay
 
-En WPF-baserad overlay-applikation för rollspel (RP) på The Path, specifikt designad för sjukhus-scenarios. Applikationen tillhandahåller snabbkommandon och anteckningsverktyg som alltid ligger överst på skärmen.
+En WPF-baserad overlay-applikation för rollspel (RP), designad för att ge snabbkommandon och anteckningsverktyg som alltid ligger överst på skärmen.
 
 ![.NET 8.0](https://img.shields.io/badge/.NET-8.0-purple)
 ![WPF](https://img.shields.io/badge/WPF-Windows-blue)
@@ -26,9 +26,9 @@ En WPF-baserad overlay-applikation för rollspel (RP) på The Path, specifikt de
   - Ändra ordning med pil-knappar
 
 ### 📔 Snabbanteckningar
-- **Flera flikar**: Tre separata anteckningsområden
+- **Flera flikar**: Organisera dina anteckningar
   - **Noteringar**: Allmänna anteckningar
-  - **Patienter**: Patientinformation
+  - **Patienter**: Karaktärsinformation
   - **Händelser**: Händelselogg
 - **Auto-sparning**: Sparas automatiskt var 30:e sekund
 - **Persistent**: Anteckningar bevaras mellan sessioner
@@ -272,7 +272,6 @@ Detta projekt är licensierat under MIT License - se [LICENSE.txt](LICENSE.txt) 
 
 ## 🙏 Erkännanden
 
-- The Path RP community
 - WPF Community för inspiration och resurser
 - .NET Open Source community
 
@@ -280,8 +279,7 @@ Detta projekt är licensierat under MIT License - se [LICENSE.txt](LICENSE.txt) 
 
 För frågor eller support:
 - Öppna en [Issue](https://github.com/benjibutten/RPOverlay/issues)
-- Kontakta på The Path RP-servern
 
 ---
 
-**Gjord med ❤️ för The Path RP community**
+**Gjord med ❤️ för RP-communityn**
