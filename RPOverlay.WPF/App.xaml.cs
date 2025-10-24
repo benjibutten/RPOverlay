@@ -1,6 +1,7 @@
 ﻿using System.Configuration;
 using System.Data;
 using System.Windows;
+using RPOverlay.WPF.Utilities;
 
 namespace RPOverlay.WPF
 {
@@ -12,12 +13,14 @@ namespace RPOverlay.WPF
         {
             base.OnStartup(e);
             
+            var version = VersionHelper.GetVersion();
+            
             // Create system tray icon with custom medical cross icon
             _notifyIcon = new System.Windows.Forms.NotifyIcon
             {
                 Icon = IconHelper.CreateMedicalCrossIcon(),
                 Visible = true,
-                Text = "The Path RP Overlay"
+                Text = $"The Path RP Overlay v{version}"
             };
 
             // Create context menu

@@ -1,0 +1,90 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 0.9.0)'
+        required: true
+        default: '0.9.0'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore RPOverlayApp.sln
+      
+    - name: Update version in project file
+      shell: pwsh
+      run: |
+        $version = "${{ github.event.inputs.version }}"
+        $csprojPath = "RPOverlay.WPF\RPOverlay.WPF.csproj"
+        $content = Get-Content $csprojPath -Raw
+        $content = $content -replace '<Version>[\d\.]+</Version>', "<Version>$version</Version>"
+        $content = $content -replace '<AssemblyVersion>[\d\.]+</AssemblyVersion>', "<AssemblyVersion>$version.0</AssemblyVersion>"
+        $content = $content -replace '<FileVersion>[\d\.]+</FileVersion>', "<FileVersion>$version.0</FileVersion>"
+        Set-Content $csprojPath $content
+        Write-Host "Updated version to $version"
+        
+    - name: Build self-contained application
+      run: |
+        dotnet publish RPOverlay.WPF\RPOverlay.WPF.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=false `
+          -p:PublishTrimmed=false `
+          --output ./publish
+          
+    - name: Create ZIP archive
+      shell: pwsh
+      run: |
+        $version = "${{ github.event.inputs.version }}"
+        $zipName = "RPOverlay-v$version-win-x64.zip"
+        Compress-Archive -Path ./publish/* -DestinationPath $zipName
+        Write-Host "Created archive: $zipName"
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.event.inputs.version }}
+        release_name: RPOverlay v${{ github.event.inputs.version }}
+        body: |
+          ## RPOverlay v${{ github.event.inputs.version }}
+          
+          ### Installation
+          1. Ladda ner ZIP-filen nedan
+          2. Packa upp till valfri mapp
+          3. Kör `RPOverlay.WPF.exe`
+          
+          ### Systemkrav
+          - Windows 10/11 (x64)
+          - .NET 8.0 Runtime (ingår i self-contained versionen)
+          
+          ### Ändringar
+          Se [commits](https://github.com/${{ github.repository }}/commits/v${{ github.event.inputs.version }}) för detaljer.
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./RPOverlay-v${{ github.event.inputs.version }}-win-x64.zip
+        asset_name: RPOverlay-v${{ github.event.inputs.version }}-win-x64.zip
+        asset_content_type: application/zip
