@@ -58,13 +58,14 @@ namespace RPOverlay.WPF
             _toggleHotkey = userSettings.ToggleHotkey;
             _interactivityToggle = userSettings.InteractivityToggle;
             
-            // Load the active prompt
-            var prompt = _promptManager.LoadPrompt(userSettings.ActivePromptName);
-            if (prompt != null)
+            // Load the active prompt from the current collection so bindings select the correct item instance
+            if (!string.IsNullOrWhiteSpace(userSettings.ActivePromptName))
             {
-                _selectedPrompt = prompt;
+                _selectedPrompt = _availablePrompts.FirstOrDefault(p =>
+                    string.Equals(p.Name, userSettings.ActivePromptName, StringComparison.OrdinalIgnoreCase));
             }
-            else
+
+            if (_selectedPrompt == null)
             {
                 _selectedPrompt = _availablePrompts.FirstOrDefault();
             }
