@@ -86,7 +86,7 @@ public sealed class NoteService
     }
 
     /// <summary>
-    /// Lists all available note IDs.
+    /// Lists all available note IDs sorted by SortOrder.
     /// </summary>
     public List<string> ListNotes()
     {
@@ -95,10 +95,16 @@ public sealed class NoteService
             if (!Directory.Exists(_notesDirectory))
                 return new();
 
-            return Directory.GetFiles(_notesDirectory, "*.yml")
-                .Select(f => Path.GetFileNameWithoutExtension(f))
-                .OrderBy(n => n)
+            // Load all notes and sort by SortOrder, then by CreatedDate
+            var notes = Directory.GetFiles(_notesDirectory, "*.yml")
+                .Select(f => ParseYamlNote(f))
+                .Where(n => n != null)
+                .OrderBy(n => n!.SortOrder)
+                .ThenBy(n => n!.CreatedDate)
+                .Select(n => n!.Id)
                 .ToList();
+
+            return notes;
         }
         catch (Exception ex)
         {
@@ -257,6 +263,12 @@ public sealed class NoteService
                 var boolStr = ExtractYamlValue(trimmed, "has_custom_name");
                 note.HasCustomName = bool.TryParse(boolStr, out var hasCustomName) && hasCustomName;
             }
+            else if (trimmed.StartsWith("sort_order:"))
+            {
+                var orderStr = ExtractYamlValue(trimmed, "sort_order");
+                if (int.TryParse(orderStr, out var sortOrder))
+                    note.SortOrder = sortOrder;
+            }
             else if (trimmed.StartsWith("content:"))
             {
                 inContent = true;
@@ -325,6 +337,7 @@ public sealed class NoteService
         sb.AppendLine($"created_date: {quote(note.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss"))}");
         sb.AppendLine($"last_modified_date: {quote(note.LastModifiedDate.ToString("yyyy-MM-dd HH:mm:ss"))}");
         sb.AppendLine($"has_custom_name: {note.HasCustomName.ToString().ToLower()}");
+        sb.AppendLine($"sort_order: {note.SortOrder}");
         sb.AppendLine();
         sb.AppendLine("content: |");
         

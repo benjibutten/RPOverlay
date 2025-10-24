@@ -82,6 +82,11 @@ namespace RPOverlay.WPF
         /// </summary>
         public DateTime LastModifiedDate { get; set; } = DateTime.Now;
 
+        /// <summary>
+        /// Sort order for display (lower numbers appear first).
+        /// </summary>
+        public int SortOrder { get; set; } = 0;
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -1234,8 +1239,14 @@ namespace RPOverlay.WPF
             var tab = new TabItem
             {
                 VerticalContentAlignment = VerticalAlignment.Stretch,
-                HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch
+                HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
+                AllowDrop = true
             };
+            
+            // Add drag & drop handlers for reordering tabs
+            tab.PreviewMouseLeftButtonDown += Tab_PreviewMouseLeftButtonDown;
+            tab.PreviewMouseMove += Tab_PreviewMouseMove;
+            tab.Drop += Tab_Drop;
             
             // Create a custom header with both TextBlock (for display) and TextBox (for editing)
             var headerGrid = new Grid();
@@ -1388,6 +1399,9 @@ namespace RPOverlay.WPF
             // Generate a unique GUID for the note file name
             var noteId = Guid.NewGuid().ToString();
             
+            // Calculate sort order based on current tab count (for new tabs)
+            var maxSortOrder = _noteTabs.Values.Any() ? _noteTabs.Values.Max(n => n.SortOrder) : -1;
+            
             var noteTab = new NoteTab 
             { 
                 Id = noteId,
@@ -1396,7 +1410,8 @@ namespace RPOverlay.WPF
                 Content = initialContent,
                 CreatedDate = DateTime.Now,
                 LastModifiedDate = DateTime.Now,
-                HasCustomName = false
+                HasCustomName = false,
+                SortOrder = maxSortOrder + 1
             };
             _noteTabs[tabName] = noteTab;
 
@@ -1462,6 +1477,92 @@ namespace RPOverlay.WPF
             if (isNewTab)
             {
                 textBox.Focus();
+            }
+        }
+
+        // Drag & Drop support for tab reordering
+        private TabItem? _draggedTab;
+        private System.Windows.Point _dragStartPoint;
+
+        private void Tab_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is TabItem tab)
+            {
+                _dragStartPoint = e.GetPosition(null);
+                _draggedTab = tab;
+            }
+        }
+
+        private void Tab_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed && _draggedTab != null)
+            {
+                System.Windows.Point currentPosition = e.GetPosition(null);
+                System.Windows.Vector diff = _dragStartPoint - currentPosition;
+
+                // Check if the drag threshold is exceeded
+                if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    // Start the drag operation
+                    DragDrop.DoDragDrop(_draggedTab, _draggedTab, System.Windows.DragDropEffects.Move);
+                }
+            }
+        }
+
+        private void Tab_Drop(object sender, System.Windows.DragEventArgs e)
+        {
+            if (sender is TabItem targetTab && e.Data.GetData(typeof(TabItem)) is TabItem sourceTab)
+            {
+                if (sourceTab == targetTab) return;
+
+                var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
+                if (tabControl == null) return;
+
+                int sourceIndex = tabControl.Items.IndexOf(sourceTab);
+                int targetIndex = tabControl.Items.IndexOf(targetTab);
+
+                if (sourceIndex < 0 || targetIndex < 0) return;
+
+                // Remove and reinsert the tab
+                tabControl.Items.RemoveAt(sourceIndex);
+                tabControl.Items.Insert(targetIndex, sourceTab);
+                tabControl.SelectedItem = sourceTab;
+
+                // Update sort orders for all tabs
+                UpdateTabSortOrders(tabControl);
+                
+                DebugLogger.Log($"Reordered tabs: moved tab from index {sourceIndex} to {targetIndex}");
+            }
+
+            _draggedTab = null;
+        }
+
+        private void UpdateTabSortOrders(System.Windows.Controls.TabControl tabControl)
+        {
+            for (int i = 0; i < tabControl.Items.Count; i++)
+            {
+                if (tabControl.Items[i] is TabItem tabItem && tabItem.Header is Grid headerGrid)
+                {
+                    // Find the note tab by display name
+                    foreach (var child in headerGrid.Children)
+                    {
+                        if (child is TextBlock textBlock)
+                        {
+                            var tabName = textBlock.Text;
+                            foreach (var noteTab in _noteTabs.Values)
+                            {
+                                if (noteTab.DisplayName == tabName)
+                                {
+                                    noteTab.SortOrder = i;
+                                    SaveNoteContent(noteTab);
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -2152,6 +2253,7 @@ namespace RPOverlay.WPF
                     noteTab.HasCustomName = note.HasCustomName;
                     noteTab.CreatedDate = note.CreatedDate;
                     noteTab.LastModifiedDate = note.LastModifiedDate;
+                    noteTab.SortOrder = note.SortOrder;
                 }
             }
             catch (Exception ex)
@@ -2171,7 +2273,8 @@ namespace RPOverlay.WPF
                     Content = noteTab.Content,
                     CreatedDate = noteTab.CreatedDate,
                     LastModifiedDate = DateTime.Now,
-                    HasCustomName = noteTab.HasCustomName
+                    HasCustomName = noteTab.HasCustomName,
+                    SortOrder = noteTab.SortOrder
                 };
                 _noteService.SaveNote(note);
             }

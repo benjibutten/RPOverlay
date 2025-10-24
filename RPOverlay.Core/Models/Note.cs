@@ -34,4 +34,9 @@ public class Note
     /// True if the user has manually set a custom name, false if name should be derived from first line.
     /// </summary>
     public bool HasCustomName { get; set; } = false;
+
+    /// <summary>
+    /// Sort order for display (lower numbers appear first).
+    /// </summary>
+    public int SortOrder { get; set; } = 0;
 }
