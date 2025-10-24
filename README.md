@@ -105,13 +105,23 @@ Hotkeys kan konfigureras med modifierare:
 - Giltiga modifierare: `Ctrl`, `Shift`, `Alt`, `Win`
 
 ### Anteckningar
-Anteckningar sparas automatiskt i:
+Anteckningar sparas automatiskt som YML-filer med metadata i:
 ```
 %APPDATA%\RPOverlay\Notes\
-  - Noteringar.txt
-  - Patienter.txt
-  - Händelser.txt
+  - Anteckningar.yml
+  - MinNote.yml
+  - ...
+  
+%APPDATA%\RPOverlay\Notes\Archive\
+  - Stängda anteckningar arkiveras här
 ```
+
+**Flikar och hantering:**
+- Flikar baseras på vilka `.yml` filer som finns i Notes-mappen
+- Dubbelklicka på en flik för att döpa om den
+- Tryck Enter för att spara, Escape för att ångra
+- Stäng en flik (X) för att arkivera den till Archive-mappen
+- Första raden blir fliknamn automatiskt (om inget manuellt namn satts)
 
 ## 🎨 Anpassning
 

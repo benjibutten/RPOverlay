@@ -27,9 +27,35 @@ namespace RPOverlay.WPF
     public class NoteTab : INotifyPropertyChanged
     {
         private string _content = string.Empty;
+        private string _displayName = string.Empty;
         
+        /// <summary>
+        /// The unique ID of the note (used for file name).
+        /// </summary>
+        public string Id { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// The internal name (same as ID for compatibility).
+        /// </summary>
         public string Name { get; set; } = string.Empty;
         
+        /// <summary>
+        /// The display name shown in the tab header.
+        /// </summary>
+        public string DisplayName
+        {
+            get => _displayName;
+            set
+            {
+                if (_displayName == value) return;
+                _displayName = value;
+                OnPropertyChanged();
+            }
+        }
+        
+        /// <summary>
+        /// The content of the note.
+        /// </summary>
         public string Content
         {
             get => _content;
@@ -40,6 +66,21 @@ namespace RPOverlay.WPF
                 OnPropertyChanged();
             }
         }
+
+        /// <summary>
+        /// Whether the user has manually set a custom name.
+        /// </summary>
+        public bool HasCustomName { get; set; } = false;
+        
+        /// <summary>
+        /// When the note was created.
+        /// </summary>
+        public DateTime CreatedDate { get; set; } = DateTime.Now;
+        
+        /// <summary>
+        /// When the note was last modified.
+        /// </summary>
+        public DateTime LastModifiedDate { get; set; } = DateTime.Now;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -93,6 +134,7 @@ namespace RPOverlay.WPF
         private readonly OverlayConfigService _configService;
         private readonly UserSettingsService _userSettingsService;
         private readonly PromptManager _promptManager;
+        private readonly NoteService _noteService;
         private readonly ObservableCollection<OverlayButton> _buttons = new();
         private HwndSource? _hwndSource;
         private IntPtr _windowHandle;
@@ -104,6 +146,7 @@ namespace RPOverlay.WPF
         private string _hotkeyHint = "F9";
         private bool _isDisposed;
         private readonly DispatcherTimer _autoSaveTimer;
+        private DispatcherTimer? _saveDebounceTimer; // Debounce timer for saving on text change
         private readonly string _notesDirectory;
         private readonly Dictionary<string, NoteTab> _noteTabs = new();
         private static bool _debugMode = false;
@@ -164,6 +207,12 @@ namespace RPOverlay.WPF
                     "RPOverlay",
                     "Notes");
                 Directory.CreateDirectory(_notesDirectory);
+                
+                // Initialize NoteService
+                _noteService = new NoteService(_notesDirectory);
+                
+                // Migrate old .txt notes to .yml format
+                _noteService.MigrateOldNotesIfNeeded();
 
                 // Initialize auto-save timer (every 30 seconds)
                 _autoSaveTimer = new DispatcherTimer
@@ -349,19 +398,8 @@ namespace RPOverlay.WPF
                 settings.WindowLeft = Left;
                 settings.WindowTop = Top;
                 
-                // Save tab states
-                var tabControl = this.FindName("NotesTabControl") as System.Windows.Controls.TabControl;
-                if (tabControl != null)
-                {
-                    settings.OpenTabs = new List<string>();
-                    foreach (TabItem tab in tabControl.Items)
-                    {
-                        if (tab.Header is string tabName)
-                        {
-                            settings.OpenTabs.Add(tabName);
-                        }
-                    }
-                }
+                // Note: We no longer save OpenTabs to settings
+                // Tabs are now determined by which .yml files exist in the Notes directory
                 
                 _userSettingsService.Save(settings);
                 DebugLogger.Log("Saved user settings");
@@ -1143,7 +1181,26 @@ namespace RPOverlay.WPF
                 return;
             }
 
-            var tabName = tabItem.Header?.ToString();
+            var tabName = string.Empty;
+            
+            // Extract tab name from header (which is now a Grid containing TextBlock and TextBox)
+            if (tabItem.Header is Grid headerGrid)
+            {
+                foreach (var child in headerGrid.Children)
+                {
+                    if (child is TextBlock textBlock)
+                    {
+                        tabName = textBlock.Text;
+                        break;
+                    }
+                }
+            }
+            else if (tabItem.Header is string headerStr)
+            {
+                // Fallback for old format
+                tabName = headerStr;
+            }
+            
             if (string.IsNullOrEmpty(tabName)) return;
 
             var result = System.Windows.MessageBox.Show(
@@ -1154,20 +1211,18 @@ namespace RPOverlay.WPF
 
             if (result == MessageBoxResult.Yes)
             {
-                // Save content before closing
+                // Save content and archive the note
                 if (_noteTabs.TryGetValue(tabName, out var noteTab))
                 {
                     SaveNoteContent(noteTab);
+                    _noteService.ArchiveNote(noteTab.Id);
                 }
 
                 // Remove from tabs
                 tabControl.Items.Remove(tabItem);
                 _noteTabs.Remove(tabName);
                 
-                // Save updated tab list
-                SaveUserSettings();
-                
-                DebugLogger.Log($"Closed tab: {tabName}");
+                DebugLogger.Log($"Closed and archived tab: {tabName}");
             }
         }
 
@@ -1178,10 +1233,108 @@ namespace RPOverlay.WPF
 
             var tab = new TabItem
             {
-                Header = tabName,
                 VerticalContentAlignment = VerticalAlignment.Stretch,
                 HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch
             };
+            
+            // Create a custom header with both TextBlock (for display) and TextBox (for editing)
+            var headerGrid = new Grid();
+            
+            var displayTextBlock = new TextBlock
+            {
+                Text = tabName,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = System.Windows.Media.Brushes.White,
+                Visibility = Visibility.Visible
+            };
+            
+            var editTextBox = new System.Windows.Controls.TextBox
+            {
+                Text = tabName,
+                MinWidth = 60,
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(35, 35, 35)),
+                Foreground = System.Windows.Media.Brushes.White,
+                BorderBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(47, 157, 255)),
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(2),
+                Visibility = Visibility.Collapsed
+            };
+            
+            headerGrid.Children.Add(displayTextBlock);
+            headerGrid.Children.Add(editTextBox);
+            
+            tab.Header = headerGrid;
+
+            // Double-click to edit name
+            displayTextBlock.MouseLeftButtonDown += (s, e) =>
+            {
+                if (e.ClickCount == 2)
+                {
+                    displayTextBlock.Visibility = Visibility.Collapsed;
+                    editTextBox.Visibility = Visibility.Visible;
+                    editTextBox.Focus();
+                    editTextBox.SelectAll();
+                    e.Handled = true;
+                }
+            };
+            
+            // Finish editing on Enter or lost focus
+            Action finishEditing = () =>
+            {
+                var newName = editTextBox.Text.Trim();
+                if (!string.IsNullOrWhiteSpace(newName) && newName.Length <= 30)
+                {
+                    // Find the NoteTab associated with this tab
+                    var oldName = displayTextBlock.Text;
+                    if (_noteTabs.TryGetValue(oldName, out var noteTab))
+                    {
+                        // Update display name and mark as having custom name
+                        noteTab.DisplayName = newName;
+                        noteTab.HasCustomName = true;
+                        displayTextBlock.Text = newName;
+                        
+                        // Update dictionary key if name changed
+                        if (oldName != newName)
+                        {
+                            _noteTabs.Remove(oldName);
+                            _noteTabs[newName] = noteTab;
+                        }
+                        
+                        // Save immediately
+                        SaveNoteContent(noteTab);
+                    }
+                }
+                else
+                {
+                    // Revert to old name if invalid
+                    editTextBox.Text = displayTextBlock.Text;
+                }
+                
+                editTextBox.Visibility = Visibility.Collapsed;
+                displayTextBlock.Visibility = Visibility.Visible;
+            };
+            
+            editTextBox.KeyDown += (s, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    finishEditing();
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    editTextBox.Text = displayTextBlock.Text;
+                    editTextBox.Visibility = Visibility.Collapsed;
+                    displayTextBlock.Visibility = Visibility.Visible;
+                    e.Handled = true;
+                }
+            };
+            
+            // Don't use LostFocus - only allow Enter/Escape to finish editing
+            // This prevents unwanted editing cancellation when mouse moves around
 
             // Create a Grid to hold the TextBox and ensure it fills all space
             var grid = new Grid
@@ -1216,50 +1369,71 @@ namespace RPOverlay.WPF
 
             grid.Children.Add(textBox);
 
-            // Auto-focus on mouse enter to avoid clicking in FiveM
-            textBox.MouseEnter += (s, e) =>
+            // Visual feedback on focus state
+            textBox.GotFocus += (s, e) =>
             {
-                if (!textBox.IsFocused)
-                {
-                    textBox.Focus();
-                    textBox.Background = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(35, 35, 35)); // Slightly lighter when active
-                    DebugLogger.Log("TextBox auto-focused on mouse enter");
-                }
+                textBox.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(35, 35, 35)); // Slightly lighter when focused
             };
-
-            textBox.MouseLeave += (s, e) =>
+            
+            textBox.LostFocus += (s, e) =>
             {
-                if (!textBox.IsFocused)
-                {
-                    textBox.Background = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(28, 28, 28)); // Back to normal
-                }
+                textBox.Background = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(28, 28, 28)); // Back to normal
             };
 
             textBox.GotFocus += NoteTextBox_GotFocus;
             textBox.LostFocus += NoteTextBox_LostFocus;
 
-            var noteTab = new NoteTab { Name = tabName, Content = initialContent };
+            // Generate a unique GUID for the note file name
+            var noteId = Guid.NewGuid().ToString();
+            
+            var noteTab = new NoteTab 
+            { 
+                Id = noteId,
+                Name = tabName, // Keep for compatibility
+                DisplayName = tabName,
+                Content = initialContent,
+                CreatedDate = DateTime.Now,
+                LastModifiedDate = DateTime.Now,
+                HasCustomName = false
+            };
             _noteTabs[tabName] = noteTab;
 
             // Load saved content if exists (unless it's a brand new tab)
             if (!isNewTab)
             {
                 LoadNoteContent(noteTab);
+                // Update tab header with loaded display name
+                displayTextBlock.Text = noteTab.DisplayName;
+                editTextBox.Text = noteTab.DisplayName;
             }
             textBox.Text = noteTab.Content;
 
-            // Bind textbox to note content and update tab name based on first line (only if not protected)
+            // Bind textbox to note content and update tab name based on first line (only if not has custom name and not protected)
             textBox.TextChanged += (s, e) =>
             {
-                if (!_noteTabs.TryGetValue(tabName, out var nt))
+                // Find the NoteTab by searching through all tabs
+                NoteTab? nt = null;
+                foreach (var kvp in _noteTabs.Values)
+                {
+                    if (kvp.DisplayName == displayTextBlock.Text)
+                    {
+                        nt = kvp;
+                        break;
+                    }
+                }
+                
+                if (nt == null)
                     return;
 
                 nt.Content = textBox.Text;
 
-                // Only update tab name if it's not a protected default tab
-                if (!isProtectedTab)
+                // Trigger debounced save
+                DebouncedSaveNote(nt);
+
+                // Only update tab name if it's not a protected default tab and doesn't have a custom name
+                if (!isProtectedTab && !nt.HasCustomName)
                 {
                     // Extract first line as tab name
                     var lines = textBox.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -1269,14 +1443,11 @@ namespace RPOverlay.WPF
                         if (!string.IsNullOrWhiteSpace(newName) && newName.Length <= 20) // Limit tab name length
                         {
                             // Update tab header if name changed
-                            if (tab.Header.ToString() != newName && !_noteTabs.ContainsKey(newName))
+                            if (displayTextBlock.Text != newName)
                             {
-                                // Remove old entry and add with new name
-                                _noteTabs.Remove(tabName);
-                                tabName = newName;
-                                _noteTabs[tabName] = nt;
-                                nt.Name = newName;
-                                tab.Header = newName;
+                                nt.DisplayName = newName;
+                                displayTextBlock.Text = newName;
+                                editTextBox.Text = newName;
                             }
                         }
                     }
@@ -1932,26 +2103,26 @@ namespace RPOverlay.WPF
                 return;
             }
 
-            // Load tabs from user settings if available
-            var userSettings = _userSettingsService.Current;
-            if (userSettings.OpenTabs != null && userSettings.OpenTabs.Count > 0)
+            // Load all notes from the Notes directory (excluding Archive folder)
+            var noteIds = _noteService.ListNotes();
+            
+            if (noteIds.Count > 0)
             {
-                DebugLogger.Log($"Restoring {userSettings.OpenTabs.Count} tabs from settings");
-                foreach (var tabName in userSettings.OpenTabs)
+                DebugLogger.Log($"Loading {noteIds.Count} notes from disk");
+                foreach (var noteId in noteIds)
                 {
-                    AddNoteTab(tabName, string.Empty, false, isProtectedTab: false);
+                    var note = _noteService.LoadNote(noteId);
+                    if (note != null)
+                    {
+                        AddNoteTab(note.Name, note.Content, false, isProtectedTab: false);
+                    }
                 }
             }
             else
             {
-                // Create default tabs if no saved tabs exist
-                DebugLogger.Log("No saved tabs found, creating default tabs");
-                var defaultTabs = new[] { "Anteckningar" };
-                
-                foreach (var tabName in defaultTabs)
-                {
-                    AddNoteTab(tabName, string.Empty, false, isProtectedTab: false);
-                }
+                // Create default tab if no notes exist
+                DebugLogger.Log("No saved notes found, creating default tab");
+                AddNoteTab("Anteckningar", string.Empty, false, isProtectedTab: false);
             }
 
             if (tabControl.Items.Count > 0)
@@ -1964,10 +2135,23 @@ namespace RPOverlay.WPF
         {
             try
             {
-                var filePath = Path.Combine(_notesDirectory, $"{noteTab.Name}.txt");
-                if (File.Exists(filePath))
+                // First try to load by ID
+                var note = _noteService.LoadNote(noteTab.Id);
+                
+                // If not found by ID, try loading by the tab name (for backward compatibility)
+                if (note == null)
                 {
-                    noteTab.Content = File.ReadAllText(filePath);
+                    note = _noteService.LoadNote(noteTab.Name);
+                }
+                
+                if (note != null)
+                {
+                    noteTab.Id = note.Id;
+                    noteTab.Content = note.Content;
+                    noteTab.DisplayName = note.Name;
+                    noteTab.HasCustomName = note.HasCustomName;
+                    noteTab.CreatedDate = note.CreatedDate;
+                    noteTab.LastModifiedDate = note.LastModifiedDate;
                 }
             }
             catch (Exception ex)
@@ -1980,8 +2164,16 @@ namespace RPOverlay.WPF
         {
             try
             {
-                var filePath = Path.Combine(_notesDirectory, $"{noteTab.Name}.txt");
-                File.WriteAllText(filePath, noteTab.Content);
+                var note = new Note
+                {
+                    Id = noteTab.Id,
+                    Name = noteTab.DisplayName,
+                    Content = noteTab.Content,
+                    CreatedDate = noteTab.CreatedDate,
+                    LastModifiedDate = DateTime.Now,
+                    HasCustomName = noteTab.HasCustomName
+                };
+                _noteService.SaveNote(note);
             }
             catch (Exception ex)
             {
@@ -1995,6 +2187,27 @@ namespace RPOverlay.WPF
             {
                 SaveNoteContent(noteTab);
             }
+        }
+
+        private void DebouncedSaveNote(NoteTab noteTab)
+        {
+            // Stop existing timer if any
+            _saveDebounceTimer?.Stop();
+            
+            // Create new timer that will save after 2 seconds of inactivity
+            _saveDebounceTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(2)
+            };
+            
+            _saveDebounceTimer.Tick += (s, e) =>
+            {
+                _saveDebounceTimer.Stop();
+                SaveNoteContent(noteTab);
+                DebugLogger.Log($"Debounced save for note: {noteTab.DisplayName}");
+            };
+            
+            _saveDebounceTimer.Start();
         }
 
         private void AutoSaveTimer_Tick(object? sender, EventArgs e)
