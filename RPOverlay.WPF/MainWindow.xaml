@@ -491,16 +491,77 @@
                                                                             </Style.Triggers>
                                                                         </Style>
                                                                     </Border.Style>
-                                                                    <TextBox Text="{Binding Content, Mode=OneWay}"
-                                                                             TextWrapping="Wrap"
-                                                                             Foreground="White"
-                                                                             FontSize="{Binding FontSize}"
-                                                                             Background="Transparent"
-                                                                             BorderThickness="0"
-                                                                             IsReadOnly="True"
-                                                                             Cursor="Arrow"
-                                                                             Focusable="True"
-                                                                             IsTabStop="False"/>
+                                                                    <Grid>
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="*"/>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                        </Grid.RowDefinitions>
+                                                                        
+                                                                        <TextBox Grid.Row="0"
+                                                                                 Text="{Binding Content, Mode=OneWay}"
+                                                                                 TextWrapping="Wrap"
+                                                                                 Foreground="White"
+                                                                                 FontSize="{Binding FontSize}"
+                                                                                 Background="Transparent"
+                                                                                 BorderThickness="0"
+                                                                                 IsReadOnly="True"
+                                                                                 Cursor="Arrow"
+                                                                                 Focusable="True"
+                                                                                 IsTabStop="False"
+                                                                                 Margin="0,0,0,6"/>
+                                                                        
+                                                                        <StackPanel Grid.Row="1" 
+                                                                                   Orientation="Horizontal" 
+                                                                                   HorizontalAlignment="Right"
+                                                                                   Margin="0,4,0,0">
+                                                                            <Button x:Name="CopyButton"
+                                                                                    Content="📋"
+                                                                                    Padding="4,2"
+                                                                                    FontSize="12"
+                                                                                    Foreground="White"
+                                                                                    Background="#FF1E1E1E"
+                                                                                    BorderThickness="1"
+                                                                                    BorderBrush="#FF555555"
+                                                                                    Cursor="Hand"
+                                                                                    Click="CopyMessage_Click"
+                                                                                    Tag="{Binding Content}"
+                                                                                    ToolTip="Kopiera allt">
+                                                                                <Button.Style>
+                                                                                    <Style TargetType="Button">
+                                                                                        <Style.Triggers>
+                                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                                <Setter Property="Background" Value="#FF2A2A2A"/>
+                                                                                            </Trigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </Button.Style>
+                                                                            </Button>
+                                                                            
+                                                                            <Button x:Name="CopySelectionButton"
+                                                                                    Content="✂️"
+                                                                                    Margin="4,0,0,0"
+                                                                                    Padding="4,2"
+                                                                                    FontSize="12"
+                                                                                    Foreground="White"
+                                                                                    Background="#FF1E1E1E"
+                                                                                    BorderThickness="1"
+                                                                                    BorderBrush="#FF555555"
+                                                                                    Cursor="Hand"
+                                                                                    Click="CopySelection_Click"
+                                                                                    Tag="{Binding Content}"
+                                                                                    ToolTip="Kopiera markering">
+                                                                                <Button.Style>
+                                                                                    <Style TargetType="Button">
+                                                                                        <Style.Triggers>
+                                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                                <Setter Property="Background" Value="#FF2A2A2A"/>
+                                                                                            </Trigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </Button.Style>
+                                                                            </Button>
+                                                                        </StackPanel>
+                                                                    </Grid>
                                                                 </Border>
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>

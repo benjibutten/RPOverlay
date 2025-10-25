@@ -12,6 +12,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.Windows.Media;
 using System.IO;
 using System.Text.Json;
 using System.Text;
@@ -1635,6 +1636,91 @@ namespace RPOverlay.WPF
                 
                 ScrollChatToBottom();
             }
+        }
+
+        private void CopyMessage_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button button && button.Tag is string content)
+            {
+                try
+                {
+                    System.Windows.Forms.Clipboard.SetText(content);
+                    // Optional: Show brief visual feedback
+                    DebugLogger.Log($"Copied message to clipboard: {content.Substring(0, Math.Min(50, content.Length))}...");
+                }
+                catch (Exception ex)
+                {
+                    DebugLogger.Log($"Error copying to clipboard: {ex.Message}");
+                }
+            }
+        }
+
+        private void CopySelection_Click(object sender, RoutedEventArgs e)
+        {
+            // Try to find the TextBox in the visual tree and copy its selected text
+            if (sender is System.Windows.Controls.Button button)
+            {
+                try
+                {
+                    // Get the parent Border and find the TextBox within it
+                    var border = button.Parent;
+                    while (border != null && border is not Border)
+                    {
+                        if (border is FrameworkElement element)
+                        {
+                            border = VisualTreeHelper.GetParent(element);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    if (border is Border contentBorder)
+                    {
+                        // Find the TextBox within the Border
+                        var textBox = FindVisualChild<System.Windows.Controls.TextBox>(contentBorder);
+                        if (textBox != null && !string.IsNullOrEmpty(textBox.SelectedText))
+                        {
+                            System.Windows.Forms.Clipboard.SetText(textBox.SelectedText);
+                            DebugLogger.Log($"Copied selected text to clipboard: {textBox.SelectedText.Substring(0, Math.Min(50, textBox.SelectedText.Length))}...");
+                        }
+                        else if (textBox != null)
+                        {
+                            // If nothing is selected, copy all text
+                            System.Windows.Forms.Clipboard.SetText(textBox.Text);
+                            DebugLogger.Log($"No selection found, copied all text to clipboard");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugLogger.Log($"Error copying selection to clipboard: {ex.Message}");
+                }
+            }
+        }
+
+        private T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null)
+                return null;
+
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild)
+                {
+                    return typedChild;
+                }
+
+                var result = FindVisualChild<T>(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+
+            return null;
         }
 
         private void CloseTab_Click(object sender, RoutedEventArgs e)
