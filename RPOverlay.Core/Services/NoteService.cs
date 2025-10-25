@@ -22,7 +22,7 @@ public sealed class NoteService
             throw new ArgumentException("Notes directory cannot be empty", nameof(notesDirectory));
 
         _notesDirectory = notesDirectory;
-        _archiveDirectory = Path.Combine(notesDirectory, "Archive");
+        _archiveDirectory = Path.Combine(notesDirectory, "archive");
         Directory.CreateDirectory(_notesDirectory);
         Directory.CreateDirectory(_archiveDirectory);
     }

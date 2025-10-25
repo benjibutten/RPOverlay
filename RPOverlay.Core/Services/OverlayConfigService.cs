@@ -19,24 +19,73 @@ public sealed class OverlayConfigService : IDisposable
     };
 
     private readonly IOverlayConfigPathProvider _pathProvider;
-    private readonly FileSystemWatcher _watcher;
-    private readonly string _configPath;
+    private FileSystemWatcher? _watcher;
+    private string _configPath = string.Empty;
     private int _reloadGate;
     private bool _disposed;
+    private readonly object _syncRoot = new();
 
     public OverlayConfigService(IOverlayConfigPathProvider pathProvider)
     {
         _pathProvider = pathProvider ?? throw new ArgumentNullException(nameof(pathProvider));
-        _configPath = _pathProvider.GetConfigFilePath();
-        Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
-        EnsureConfigFile();
-        Current = LoadConfigFromDisk();
-        _watcher = CreateWatcher();
+        ReloadInternal(raiseEvent: false);
     }
 
-    public OverlayConfig Current { get; private set; }
+    public OverlayConfig Current { get; private set; } = OverlayConfig.CreateDefault();
 
     public event Action<OverlayConfig>? ConfigReloaded;
+
+    public OverlayConfig ReloadForCurrentProfile()
+    {
+        return ReloadInternal(raiseEvent: true);
+    }
+
+    private OverlayConfig ReloadInternal(bool raiseEvent)
+    {
+        OverlayConfig config;
+
+        lock (_syncRoot)
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(OverlayConfigService));
+            }
+
+            var newPath = _pathProvider.GetConfigFilePath();
+            if (string.IsNullOrWhiteSpace(newPath))
+            {
+                throw new InvalidOperationException("Overlay config path provider returned an empty path.");
+            }
+
+            var pathChanged = !string.Equals(_configPath, newPath, StringComparison.OrdinalIgnoreCase);
+
+            if (pathChanged)
+            {
+                DisposeWatcher();
+                _configPath = newPath;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
+            EnsureConfigFile();
+
+            config = LoadConfigFromDisk();
+            Current = config;
+
+            if (pathChanged || _watcher is null)
+            {
+                _watcher = CreateWatcher();
+            }
+
+            Interlocked.Exchange(ref _reloadGate, 0);
+        }
+
+        if (raiseEvent)
+        {
+            ConfigReloaded?.Invoke(config);
+        }
+
+        return config;
+    }
 
     private FileSystemWatcher CreateWatcher()
     {
@@ -67,6 +116,11 @@ public sealed class OverlayConfigService : IDisposable
             try
             {
                 await Task.Delay(150).ConfigureAwait(false);
+                if (_disposed)
+                {
+                    return;
+                }
+
                 var config = LoadConfigFromDisk();
                 Current = config;
                 ConfigReloaded?.Invoke(config);
@@ -99,6 +153,11 @@ public sealed class OverlayConfigService : IDisposable
 
     private void EnsureConfigFile()
     {
+        if (string.IsNullOrWhiteSpace(_configPath))
+        {
+            throw new InvalidOperationException("Overlay config path is not initialized.");
+        }
+
         if (File.Exists(_configPath))
         {
             return;
@@ -116,7 +175,11 @@ public sealed class OverlayConfigService : IDisposable
         try
         {
             // Temporarily disable file watcher to avoid reload loop
-            _watcher.EnableRaisingEvents = false;
+            var watcher = _watcher;
+            if (watcher != null)
+            {
+                watcher.EnableRaisingEvents = false;
+            }
             
             var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_configPath, json);
@@ -126,7 +189,10 @@ public sealed class OverlayConfigService : IDisposable
         finally
         {
             // Re-enable file watcher
-            _watcher.EnableRaisingEvents = true;
+            if (_watcher != null)
+            {
+                _watcher.EnableRaisingEvents = true;
+            }
         }
     }
 
@@ -138,6 +204,18 @@ public sealed class OverlayConfigService : IDisposable
         }
 
         _disposed = true;
-        _watcher?.Dispose();
+        DisposeWatcher();
+    }
+
+    private void DisposeWatcher()
+    {
+        if (_watcher is null)
+        {
+            return;
+        }
+
+        _watcher.EnableRaisingEvents = false;
+        _watcher.Dispose();
+        _watcher = null;
     }
 }

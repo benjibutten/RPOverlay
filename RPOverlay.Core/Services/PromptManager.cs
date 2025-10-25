@@ -17,13 +17,12 @@ public sealed class PromptManager
     private readonly string _promptsDirectory;
     private readonly string _defaultPromptPath;
 
-    public PromptManager(IOverlayConfigPathProvider pathProvider)
+    public PromptManager(IGlobalSettingsPathProvider pathProvider)
     {
         if (pathProvider == null)
             throw new ArgumentNullException(nameof(pathProvider));
 
-        var configDir = Path.GetDirectoryName(pathProvider.GetConfigFilePath());
-        _promptsDirectory = Path.Combine(configDir!, "prompts");
+        _promptsDirectory = pathProvider.GetPromptsDirectory();
         _defaultPromptPath = Path.Combine(_promptsDirectory, "default.yaml");
 
         Directory.CreateDirectory(_promptsDirectory);

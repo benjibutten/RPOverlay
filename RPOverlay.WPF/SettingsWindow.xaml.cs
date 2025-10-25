@@ -32,16 +32,18 @@ namespace RPOverlay.WPF
         private bool _useMiddleClickAsPrimary;
         private bool _includeTabContext;
 
-        public SettingsWindow()
+        public SettingsWindow(
+            OverlayConfigService configService,
+            UserSettingsService userSettingsService,
+            PromptManager promptManager)
         {
             InitializeComponent();
             MouseClickOverrideManager.Register(this);
             DataContext = this;
 
-            var pathProvider = new AppDataOverlayConfigPathProvider();
-            _configService = new OverlayConfigService(pathProvider);
-            _userSettingsService = new UserSettingsService(pathProvider);
-            _promptManager = new PromptManager(pathProvider);
+            _configService = configService ?? throw new ArgumentNullException(nameof(configService));
+            _userSettingsService = userSettingsService ?? throw new ArgumentNullException(nameof(userSettingsService));
+            _promptManager = promptManager ?? throw new ArgumentNullException(nameof(promptManager));
             _availablePrompts = new ObservableCollection<PromptDefinition>();
             
             // Load existing commands

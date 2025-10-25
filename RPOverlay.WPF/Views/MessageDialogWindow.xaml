@@ -8,11 +8,11 @@
         AllowsTransparency="True"
         Background="Transparent"
         SizeToContent="WidthAndHeight">
-    <Border Background="#FF1E1E1E"
-            CornerRadius="10"
-            BorderBrush="#FF2F9DFF"
+    <Border Background="#DD1E1E1E"
+            CornerRadius="12"
+            BorderBrush="#FF3F3F3F"
             BorderThickness="1"
-            Padding="16">
+            Padding="20">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -21,11 +21,12 @@
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0"
-                    Margin="0,0,0,12"
-                    Background="#22000000"
-                    CornerRadius="6"
-                    Padding="6,4"
-                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    Margin="0,0,0,16"
+                    Background="#11FFFFFF"
+                    CornerRadius="8"
+                    Padding="12,8"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                    Cursor="SizeAll">
                 <TextBlock x:Name="TitleText"
                            FontSize="16"
                            FontWeight="SemiBold"

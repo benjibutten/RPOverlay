@@ -14,15 +14,18 @@ public sealed class UserSettingsService
 {
     private readonly string _settingsPath;
 
-    public UserSettingsService(IOverlayConfigPathProvider pathProvider)
+    public UserSettingsService(IGlobalSettingsPathProvider pathProvider)
     {
         if (pathProvider == null)
             throw new ArgumentNullException(nameof(pathProvider));
 
-        var configDir = Path.GetDirectoryName(pathProvider.GetConfigFilePath());
-        _settingsPath = Path.Combine(configDir!, "settings.ini");
+        _settingsPath = pathProvider.GetSettingsFilePath();
         
-        Directory.CreateDirectory(configDir!);
+        var settingsDir = Path.GetDirectoryName(_settingsPath);
+        if (!string.IsNullOrEmpty(settingsDir))
+        {
+            Directory.CreateDirectory(settingsDir);
+        }
     }
 
     public UserSettings Current { get; private set; } = UserSettings.CreateDefault();

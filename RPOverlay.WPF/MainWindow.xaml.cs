@@ -157,7 +157,9 @@ namespace RPOverlay.WPF
         private readonly OverlayConfigService _configService;
         private readonly UserSettingsService _userSettingsService;
         private readonly PromptManager _promptManager;
-        private readonly NoteService _noteService;
+        private NoteService _noteService;
+        private readonly ProfilePathProvider _profilePathProvider;
+        private readonly GlobalSettingsPathProvider _globalSettingsPathProvider;
         private readonly ObservableCollection<OverlayButton> _buttons = new();
         private HwndSource? _hwndSource;
         private IntPtr _windowHandle;
@@ -167,10 +169,11 @@ namespace RPOverlay.WPF
         private readonly int _hotkeyId = 0x1001;
         private IntPtr _lastForegroundWindow = IntPtr.Zero;
         private string _hotkeyHint = "F9";
+        private string _currentProfileName = "Standard";
         private bool _isDisposed;
         private readonly DispatcherTimer _autoSaveTimer;
         private DispatcherTimer? _saveDebounceTimer; // Debounce timer for saving on text change
-        private readonly string _notesDirectory;
+        private string _notesDirectory; // Notes directory for the current profile (can change when switching profiles)
         private readonly Dictionary<string, NoteTab> _noteTabs = new();
         private static bool _debugMode = false;
         private double _noteFontSize = 16.0; // Default font size (increased from 12.0)
@@ -178,7 +181,7 @@ namespace RPOverlay.WPF
         private bool _overlayInteractive = true; // Track if overlay is interactive - start interactive
         private readonly DispatcherTimer _mouseCheckTimer;
         private int _interactivityToggleVK = NativeMethods.VK_XBUTTON2; // Virtual key code for interactivity toggle
-    private bool _useMiddleClickAsPrimary = false;
+        private bool _useMiddleClickAsPrimary = false;
         
         // Chat-related fields
         private readonly ChatService _chatService = new();
@@ -231,20 +234,22 @@ namespace RPOverlay.WPF
                 }
 
                 DebugLogger.Log("MainWindow constructor: Creating services...");
-                var pathProvider = new AppDataOverlayConfigPathProvider();
-                _configService = new OverlayConfigService(pathProvider);
-                _userSettingsService = new UserSettingsService(pathProvider);
-                _promptManager = new PromptManager(pathProvider);
+                _profilePathProvider = new ProfilePathProvider();
+                _globalSettingsPathProvider = new GlobalSettingsPathProvider();
+                
+                _configService = new OverlayConfigService(_profilePathProvider);
+                _userSettingsService = new UserSettingsService(_globalSettingsPathProvider);
+                _promptManager = new PromptManager(_globalSettingsPathProvider);
                 _configService.ConfigReloaded += OnConfigReloaded;
+
+                // Set current profile name
+                UpdateCurrentProfileName();
 
                 // Load user settings
                 LoadUserSettings();
 
-                // Initialize notes directory
-                _notesDirectory = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "RPOverlay",
-                    "Notes");
+                // Initialize notes directory from profile
+                _notesDirectory = _profilePathProvider.GetNotesDirectory();
                 Directory.CreateDirectory(_notesDirectory);
                 
                 // Initialize NoteService
@@ -297,6 +302,21 @@ namespace RPOverlay.WPF
                 }
 
                 _hotkeyHint = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CurrentProfileName
+        {
+            get => _currentProfileName;
+            private set
+            {
+                if (_currentProfileName == value)
+                {
+                    return;
+                }
+
+                _currentProfileName = value;
                 OnPropertyChanged();
             }
         }
@@ -816,7 +836,15 @@ namespace RPOverlay.WPF
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow
+            OpenSettingsWindow();
+        }
+
+        public void OpenSettingsWindow()
+        {
+            var settingsWindow = new SettingsWindow(
+                _configService,
+                _userSettingsService,
+                _promptManager)
             {
                 Owner = this
             };
@@ -845,8 +873,84 @@ namespace RPOverlay.WPF
                 _useMiddleClickAsPrimary = settings.UseMiddleClickAsPrimary;
                 MouseClickOverrideManager.SetMode(_useMiddleClickAsPrimary);
                 
-                DebugLogger.Log("Settings saved and ChatService reconfigured");
+                // Reload config to update command buttons (Current is already updated by Save())
+                ApplyConfig(_configService.Current);
+                
+                DebugLogger.Log("Settings saved, config reloaded, and ChatService reconfigured");
             }
+        }
+
+        private void ProfileManager_Click(object sender, RoutedEventArgs e)
+        {
+            var profileManager = new ProfileManagerWindow(_profilePathProvider)
+            {
+                Owner = this
+            };
+            
+            profileManager.ProfileChanged += (s, profileId) =>
+            {
+                // Reload the application with the new profile
+                ReloadWithNewProfile(profileId);
+            };
+            
+            profileManager.ShowDialog();
+        }
+
+        private void ReloadWithNewProfile(string profileId)
+        {
+            try
+            {
+                DebugLogger.Log($"Switching to profile: {profileId}");
+                
+                // Save current state before switching
+                SaveAllNotes();
+                
+                // Update the profile path provider
+                _profilePathProvider.SetActiveProfile(profileId);
+
+                // Reload overlay configuration so command buttons follow the active profile
+                _configService.ReloadForCurrentProfile();
+
+                // Update profile name display
+                UpdateCurrentProfileName();
+
+                // Update notes directory for the new profile
+                _notesDirectory = _profilePathProvider.GetNotesDirectory();
+                Directory.CreateDirectory(_notesDirectory);
+                _noteService = new NoteService(_notesDirectory);
+                
+                // Reload user settings
+                LoadUserSettings();
+                
+                // Clear and reload notes
+                _noteTabs.Clear();
+                NotesTabControl.Items.Clear();
+                InitializeNoteTabs();
+                
+                // Clear chat history
+                _chatMessages.Clear();
+                _chatService.ClearHistory();
+                _hasSentInitialContext = false;
+                
+                DebugLogger.Log($"Successfully switched to profile: {profileId}");
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.LogException(ex);
+                System.Windows.MessageBox.Show(
+                    $"Ett fel uppstod vid byte av profil: {ex.Message}",
+                    "Fel",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error
+                );
+            }
+        }
+
+        private void UpdateCurrentProfileName()
+        {
+            var profileService = _profilePathProvider.GetProfileService();
+            var profile = profileService.GetProfile(_profilePathProvider.CurrentProfileId);
+            CurrentProfileName = profile?.Name ?? "Standard";
         }
 
         private void ZoomIn_Click(object sender, RoutedEventArgs e)

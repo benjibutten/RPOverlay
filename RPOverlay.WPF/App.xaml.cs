@@ -36,11 +36,10 @@ namespace RPOverlay.WPF
             {
                 Dispatcher.Invoke(() =>
                 {
-                    var settingsWindow = new SettingsWindow
+                    if (MainWindow is MainWindow mw)
                     {
-                        Owner = MainWindow
-                    };
-                    settingsWindow.ShowDialog();
+                        mw.OpenSettingsWindow();
+                    }
                 });
             });
             contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
