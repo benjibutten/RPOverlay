@@ -1835,8 +1835,14 @@ namespace RPOverlay.WPF
                 }
             };
             
-            // Don't use LostFocus - only allow Enter/Escape to finish editing
-            // This prevents unwanted editing cancellation when mouse moves around
+            // Confirm editing when clicking outside the textbox (only for tab name editing)
+            editTextBox.LostFocus += (s, e) =>
+            {
+                if (editTextBox.Visibility == Visibility.Visible)
+                {
+                    finishEditing();
+                }
+            };
 
             // Create a Grid to hold the TextBox and ensure it fills all space
             var grid = new Grid
