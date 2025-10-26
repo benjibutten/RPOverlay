@@ -55,7 +55,8 @@ jobs:
       run: |
         $version = "${{ github.event.inputs.version }}"
         $zipName = "RPOverlay-v$version-win-x64.zip"
-        Compress-Archive -Path ./publish/* -DestinationPath $zipName
+        $files = Get-ChildItem -Path ./publish -File | Where-Object { $_.Extension -ne ".pdb" }
+        Compress-Archive -Path $files.FullName -DestinationPath $zipName
         Write-Host "Created archive: $zipName"
         
     - name: Create Release with GitHub CLI
