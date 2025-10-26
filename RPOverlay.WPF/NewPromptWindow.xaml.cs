@@ -211,18 +211,5 @@ namespace RPOverlay.WPF
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-
-        private void PromptContentTextBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            if (sender is not System.Windows.Controls.TextBox textBox)
-                return;
-
-            if (e.Delta > 0)
-                textBox.LineUp();
-            else if (e.Delta < 0)
-                textBox.LineDown();
-
-            e.Handled = true;
-        }
     }
 }
