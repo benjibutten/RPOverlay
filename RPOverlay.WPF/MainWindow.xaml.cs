@@ -2126,25 +2126,32 @@ namespace RPOverlay.WPF
             return false;
         }
 
+        private void BeginTabDrag(TabItem tab, MouseButtonEventArgs e)
+        {
+            _draggedTab = null;
+
+            if (tab.Content is DependencyObject contentRoot &&
+                IsDescendantOf(e.OriginalSource as DependencyObject, contentRoot))
+            {
+                return;
+            }
+
+            _dragStartPoint = e.GetPosition(null);
+            _draggedTab = tab;
+        }
+
         private void Tab_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is TabItem tab)
             {
-                _draggedTab = null;
-
-                if (tab.Content is DependencyObject contentRoot &&
-                    IsDescendantOf(e.OriginalSource as DependencyObject, contentRoot))
-                {
-                    return;
-                }
-
-                _dragStartPoint = e.GetPosition(null);
-                _draggedTab = tab;
+                BeginTabDrag(tab, e);
             }
         }
 
         private void Tab_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
+            // MouseClickOverrideManager converts middle button to left button when in middle-click mode,
+            // so we only need to check LeftButton state regardless of the mode
             if (e.LeftButton == MouseButtonState.Pressed && _draggedTab != null)
             {
                 System.Windows.Point currentPosition = e.GetPosition(null);
