@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.IO;
 using System.Text.Json;
 using System.Text;
@@ -2097,10 +2098,46 @@ namespace RPOverlay.WPF
         private TabItem? _draggedTab;
         private System.Windows.Point _dragStartPoint;
 
+        private static DependencyObject? GetParentElement(DependencyObject? element)
+        {
+            if (element == null)
+            {
+                return null;
+            }
+
+            return element is Visual or Visual3D
+                ? VisualTreeHelper.GetParent(element)
+                : LogicalTreeHelper.GetParent(element);
+        }
+
+        private static bool IsDescendantOf(DependencyObject? source, DependencyObject potentialAncestor)
+        {
+            var current = source;
+            while (current != null)
+            {
+                if (ReferenceEquals(current, potentialAncestor))
+                {
+                    return true;
+                }
+
+                current = GetParentElement(current);
+            }
+
+            return false;
+        }
+
         private void Tab_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is TabItem tab)
             {
+                _draggedTab = null;
+
+                if (tab.Content is DependencyObject contentRoot &&
+                    IsDescendantOf(e.OriginalSource as DependencyObject, contentRoot))
+                {
+                    return;
+                }
+
                 _dragStartPoint = e.GetPosition(null);
                 _draggedTab = tab;
             }
@@ -2119,6 +2156,7 @@ namespace RPOverlay.WPF
                 {
                     // Start the drag operation
                     DragDrop.DoDragDrop(_draggedTab, _draggedTab, System.Windows.DragDropEffects.Move);
+                    _draggedTab = null;
                 }
             }
         }
