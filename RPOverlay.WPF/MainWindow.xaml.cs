@@ -874,6 +874,10 @@ namespace RPOverlay.WPF
                 _useMiddleClickAsPrimary = settings.UseMiddleClickAsPrimary;
                 MouseClickOverrideManager.SetMode(_useMiddleClickAsPrimary);
                 
+                // Update interactivity toggle key
+                _interactivityToggleVK = ConvertInteractivityToggleToVK(settings.InteractivityToggle);
+                DebugLogger.Log($"Updated interactivity toggle to VK={_interactivityToggleVK} from setting: {settings.InteractivityToggle}");
+                
                 // Reload config to update command buttons (Current is already updated by Save())
                 ApplyConfig(_configService.Current);
                 
