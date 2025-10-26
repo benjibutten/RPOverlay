@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Input;
 using RPOverlay.Core.Models;
 using RPOverlay.Core.Services;
 using MessageDialogService = RPOverlay.WPF.Services.MessageDialogService;
@@ -15,6 +16,7 @@ namespace RPOverlay.WPF
         private string _promptName = string.Empty;
         private string _displayName = string.Empty;
         private string _promptContent = string.Empty;
+        private string _windowTitle = "Skapa ny systemprompten";
         private bool _isEditMode = false;
         private string? _originalPromptName = null;
         private bool _isNameFieldEnabled = true;
@@ -37,12 +39,24 @@ namespace RPOverlay.WPF
             PromptName = existingPrompt.DisplayName;
             DisplayName = existingPrompt.DisplayName;
             PromptContent = existingPrompt.Content;
+            WindowTitle = "Redigera Systemprompt";
             Title = "Redigera Systemprompt";
             
             // Disable name editing for default prompt
             if (existingPrompt.Name == "default")
             {
                 IsNameFieldEnabled = false;
+            }
+        }
+
+        public string WindowTitle
+        {
+            get => _windowTitle;
+            set
+            {
+                if (_windowTitle == value) return;
+                _windowTitle = value;
+                OnPropertyChanged();
             }
         }
 
@@ -196,6 +210,19 @@ namespace RPOverlay.WPF
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private void PromptContentTextBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.TextBox textBox)
+                return;
+
+            if (e.Delta > 0)
+                textBox.LineUp();
+            else if (e.Delta < 0)
+                textBox.LineDown();
+
+            e.Handled = true;
         }
     }
 }

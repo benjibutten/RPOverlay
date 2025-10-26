@@ -12,6 +12,84 @@
         AllowsTransparency="True"
         Background="Transparent"
         ResizeMode="CanResize">
+    <Window.Resources>
+        <!-- Snygg smal scrollbar stil för TextBox -->
+        <Style x:Key="ThinScrollBarStyle" TargetType="{x:Type ScrollBar}">
+            <Setter Property="Width" Value="4"/>
+            <Setter Property="MinWidth" Value="4"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#FF2F9DFF"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ScrollBar}">
+                        <Grid x:Name="Bg" Width="4">
+                            <Track x:Name="PART_Track"
+                                   IsDirectionReversed="True"
+                                   Width="4">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Opacity="0" Command="ScrollBar.PageUpCommand"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="4">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="{x:Type Thumb}">
+                                                <Border Background="#FF2F9DFF"
+                                                        CornerRadius="2"
+                                                        Width="4"
+                                                        Opacity="0.6"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Opacity="0" Command="ScrollBar.PageDownCommand"/>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <!-- Horizontal scrollbar -->
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Width" Value="Auto"/>
+                    <Setter Property="MinWidth" Value="0"/>
+                    <Setter Property="Height" Value="4"/>
+                    <Setter Property="MinHeight" Value="4"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                <Grid x:Name="Bg" Height="4">
+                                    <Track x:Name="PART_Track"
+                                           IsDirectionReversed="False"
+                                           Height="4">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Opacity="0" Command="ScrollBar.PageLeftCommand"/>
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Height="4">
+                                                <Thumb.Template>
+                                                    <ControlTemplate TargetType="{x:Type Thumb}">
+                                                        <Border Background="#FF2F9DFF"
+                                                                CornerRadius="2"
+                                                                Height="4"
+                                                                Opacity="0.6"/>
+                                                    </ControlTemplate>
+                                                </Thumb.Template>
+                                            </Thumb>
+                                        </Track.Thumb>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Opacity="0" Command="ScrollBar.PageRightCommand"/>
+                                        </Track.IncreaseRepeatButton>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
     <Border Background="#FF1E1E1E"
             CornerRadius="12"
             BorderBrush="#FF2F9DFF"
@@ -37,7 +115,7 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
-                               Text="Skapa ny systemprompten"
+                               Text="{Binding WindowTitle}"
                                FontSize="18"
                                FontWeight="SemiBold"
                                Foreground="White"
@@ -63,6 +141,45 @@
                           Margin="20"
                           VerticalScrollBarVisibility="Auto"
                           Background="Transparent">
+                <ScrollViewer.Resources>
+                    <!-- Ultra-smal scrollbar stil för outer ScrollViewer -->
+                    <Style TargetType="{x:Type ScrollBar}">
+                        <Setter Property="Width" Value="4"/>
+                        <Setter Property="MinWidth" Value="4"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="#FF2F9DFF"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="{x:Type ScrollBar}">
+                                    <Grid x:Name="Bg" Width="4">
+                                        <Track x:Name="PART_Track"
+                                               IsDirectionReversed="True"
+                                               Width="4">
+                                            <Track.DecreaseRepeatButton>
+                                                <RepeatButton Opacity="0" Command="ScrollBar.PageUpCommand"/>
+                                            </Track.DecreaseRepeatButton>
+                                            <Track.Thumb>
+                                                <Thumb Width="4">
+                                                    <Thumb.Template>
+                                                        <ControlTemplate TargetType="{x:Type Thumb}">
+                                                            <Border Background="#FF2F9DFF"
+                                                                    CornerRadius="2"
+                                                                    Width="4"
+                                                                    Opacity="0.6"/>
+                                                        </ControlTemplate>
+                                                    </Thumb.Template>
+                                                </Thumb>
+                                            </Track.Thumb>
+                                            <Track.IncreaseRepeatButton>
+                                                <RepeatButton Opacity="0" Command="ScrollBar.PageDownCommand"/>
+                                            </Track.IncreaseRepeatButton>
+                                        </Track>
+                                    </Grid>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ScrollViewer.Resources>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -135,6 +252,7 @@
                                    Margin="0,0,0,5"/>
 
                         <TextBox Grid.Row="1"
+                                 x:Name="PromptContentTextBox"
                                  Text="{Binding PromptContent, UpdateSourceTrigger=PropertyChanged}"
                                  Background="#FF1C1C1C"
                                  Foreground="White"
@@ -143,8 +261,15 @@
                                  Padding="8"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
+                                 FontFamily="Consolas"
                                  VerticalScrollBarVisibility="Auto"
-                                 ToolTip="Det faktiska innehållet i systemprompten. Det här styrar hur AI:n beter sig."/>
+                                 HorizontalScrollBarVisibility="Auto"
+                                 PreviewMouseWheel="PromptContentTextBox_PreviewMouseWheel"
+                                 ToolTip="Det faktiska innehållet i systemprompten. Det här styrer hur AI:n beter sig.">
+                            <TextBox.Resources>
+                                <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource ThinScrollBarStyle}"/>
+                            </TextBox.Resources>
+                        </TextBox>
                     </Grid>
                 </Grid>
             </ScrollViewer>

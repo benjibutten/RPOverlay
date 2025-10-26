@@ -172,10 +172,10 @@ public sealed class PromptManager
 
     private PromptDefinition ParseYamlPrompt(string filePath, string promptName)
     {
-        var lines = File.ReadAllLines(filePath, Encoding.UTF8);
-        var prompt = new PromptDefinition { Name = promptName };
-        var contentLines = new StringBuilder();
-        var inContent = false;
+    var lines = File.ReadAllLines(filePath, Encoding.UTF8);
+    var prompt = new PromptDefinition { Name = promptName };
+    var contentLines = new List<string>();
+    var inContent = false;
 
         foreach (var line in lines)
         {
@@ -196,18 +196,27 @@ public sealed class PromptManager
                 inContent = true;
                 var contentPart = ExtractYamlValue(trimmed, "content");
                 if (!string.IsNullOrEmpty(contentPart))
-                    contentLines.Append(contentPart);
+                {
+                    var inlineLines = contentPart
+                        .Replace("\\r", string.Empty, StringComparison.Ordinal)
+                        .Replace("\\n", "\n", StringComparison.Ordinal)
+                        .Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+                    contentLines.AddRange(inlineLines);
+                }
             }
             else if (inContent)
             {
-                // Handle multi-line content - check for pipe or dash continuation
-                if (trimmed.StartsWith("  ") || trimmed.StartsWith("- "))
+                // Handle multi-line content - check for indentation (pipe format in YAML)
+                if (line.StartsWith("  "))
                 {
-                    // Remove leading spaces/dashes for multi-line content
-                    var content = trimmed.StartsWith("- ") ? trimmed.Substring(2) : trimmed.Substring(2);
-                    if (contentLines.Length > 0)
-                        contentLines.AppendLine();
-                    contentLines.Append(content);
+                    // Remove leading 2 spaces for multi-line content
+                    var content = line.Length > 2 ? line.Substring(2) : string.Empty;
+                    contentLines.Add(content);
+                }
+                else if (string.IsNullOrWhiteSpace(line))
+                {
+                    contentLines.Add(string.Empty);
                 }
                 else if (!string.IsNullOrEmpty(trimmed) && !trimmed.StartsWith("#"))
                 {
@@ -217,7 +226,8 @@ public sealed class PromptManager
             }
         }
 
-        prompt.Content = contentLines.ToString().Trim();
+        // Join using Environment.NewLine to ensure Windows-friendly line endings
+        prompt.Content = string.Join(Environment.NewLine, contentLines).TrimEnd();
         if (string.IsNullOrEmpty(prompt.DisplayName))
             prompt.DisplayName = prompt.Name;
 

@@ -12,8 +12,8 @@ Examples:
 ### Where Versions Are Defined
 Update versions in: `RPOverlay.WPF/RPOverlay.WPF.csproj`
 - `<Version>` tag: Use three digits (e.g., `0.10.1`)
-- `<AssemblyVersion>` tag: Use four digits (e.g., `0.10.1.0`)
-- `<FileVersion>` tag: Use four digits (e.g., `0.10.1.0`)
+- `<AssemblyVersion>` tag: Use four digits (e.g., `0.10.1`)
+- `<FileVersion>` tag: Use four digits (e.g., `0.10.1`)
 
 ### When to Update Version
 - **Minor bump**: Bug fixes, small features, improvements

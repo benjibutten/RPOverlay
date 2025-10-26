@@ -90,6 +90,8 @@ namespace RPOverlay.WPF
 
         private void LoadAvailablePrompts()
         {
+            var currentlySelectedName = SelectedPrompt?.Name;
+            
             _availablePrompts.Clear();
             var promptNames = _promptManager.ListPrompts();
             foreach (var name in promptNames)
@@ -99,6 +101,23 @@ namespace RPOverlay.WPF
                 {
                     _availablePrompts.Add(prompt);
                 }
+            }
+            
+            // Re-select the previously selected prompt (or select the first one)
+            if (!string.IsNullOrEmpty(currentlySelectedName))
+            {
+                var reselectedPrompt = _availablePrompts.FirstOrDefault(p => p?.Name == currentlySelectedName);
+                if (reselectedPrompt != null)
+                {
+                    SelectedPrompt = reselectedPrompt;
+                    return;
+                }
+            }
+            
+            // If no prompt was selected or it no longer exists, select the first one
+            if (_availablePrompts.Count > 0)
+            {
+                SelectedPrompt = _availablePrompts[0];
             }
         }
 
@@ -519,15 +538,8 @@ namespace RPOverlay.WPF
 
             if (editPromptWindow.ShowDialog() == true)
             {
-                // Reload available prompts
+                // Reload available prompts (this will also re-select the edited prompt)
                 LoadAvailablePrompts();
-                
-                // Re-select the edited prompt
-                var editedPrompt = _availablePrompts.FirstOrDefault(p => p.Name == SelectedPrompt.Name);
-                if (editedPrompt != null)
-                {
-                    SelectedPrompt = editedPrompt;
-                }
             }
         }
 
